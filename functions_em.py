@@ -14,10 +14,12 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import iris
-import xarray as xr
+import matplotlib.ticker as mticker
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from cartopy.mpl.gridliner import (LongitudeFormatter, LatitudeFormatter, LatitudeLocator)
+import iris
+import xarray as xr
 from tqdm import tqdm
 from scipy.stats import pearsonr, linregress, t
 from scipy import signal
@@ -762,8 +764,13 @@ def plot_corr_subplots(
     corr_var_ts_2: np.ndarray = None,
     lat_bounds: list = [30, 80],
     lon_bounds: list = [-60, 40],
-    figsize_x: int = 20,
-    figsize_y: int = 10,
+    figsize_x_px: int = 90,
+    figsize_y_px: int = 45,
+    save_dpi: int = 600,
+    plot_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
+    fig_labels: list = ["b", "c"],
+    fontsize: int = 12,
+    w_space: float = 0.1,
 ):
     """
     Plots the correlation and p-values for the spatial correlation.
@@ -817,11 +824,28 @@ def plot_corr_subplots(
     lon_bounds: list
         The bounds for the longitude.
 
-    figsize_x: int
-        The x dimension for the figure size.
+    figsize_x_px: int
+        The x dimension for the figure size in px.
 
-    figsize_y: int
-        The y dimension for the figure size.
+    figsize_y_px: int
+        The y dimension for the figure size in px.
+
+    save_dpi: int
+        The dpi to save the figure at.
+        Default is 600.
+
+    plot_dir: str
+        The directory to save the plot in.
+        Default is /gws/nopw/j04/canari/users/benhutch/plots
+
+    fig_labels: list
+        The list of labels for the subplots.
+
+    fontsize: int
+        The fontsize for the text on the plot.
+
+    w_space: float
+        The width space between the subplots.
 
     Returns:
     --------
@@ -832,10 +856,41 @@ def plot_corr_subplots(
     # Set up the projection
     proj = ccrs.PlateCarree(central_longitude=0)
 
+    # print the dpi
+    print("plt.rcParams['figure.dpi']: ", plt.rcParams["figure.dpi"])
+
+    px = 1 / plt.rcParams["figure.dpi"]
+
+    # print the px
+    print("px: ", px)
+    
+    # Calculate the figure size
+    print("figsize_x_px * px: ", figsize_x_px * px)
+    print("figsize_y_px * px: ", figsize_y_px * px)
+
+    # Print total size
+    print("Total size: ", (figsize_x_px * px) * (figsize_y_px * px))
+
+    # # assert that (figsize_x_px * px) * (figsize_y_px * px) <= 1800
+    # assert (figsize_x_px * px) * (figsize_y_px * px) >= 1800, "The figure size is too large."
+
+    # Calculate the figure size in inches
+    figsize_x_in = figsize_x_px * px
+
+    # Calculate the figure size in inches
+    figsize_y_in = figsize_y_px * px
+
+    # Set up the wspace
+
     # Plot these values
     # Set up a single subplot
-    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(figsize_x, figsize_y), subplot_kw={"projection": proj})
+    fig, axs = plt.subplots(nrows=1, ncols=2,
+                            figsize=(figsize_x_in, figsize_y_in),
+                            subplot_kw={"projection": proj})
 
+    # Adjust the space between the subplots
+    plt.subplots_adjust(wspace=w_space)
+    
     # Focus on the euro-atlantic region
     lat1_grid, lat2_grid = lat_bounds[0], lat_bounds[1]
     lon1_grid, lon2_grid = lon_bounds[0], lon_bounds[1]
@@ -916,8 +971,15 @@ def plot_corr_subplots(
     axs[1].coastlines()
 
     # Include the gridlines as dashed lines
-    axs[0].gridlines(linestyle="--", alpha=0.5, draw_labels=True, xlabels_top=False, ylabels_right=False)
-    axs[1].gridlines(linestyle="--", alpha=0.5, draw_labels=True, xlabels_top=False, ylabels_right=False, ylabels_left=False)
+    gl0 = axs[0].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
+    gl1 = axs[1].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
+
+    # Set the labels for the gridlines
+    gl0.top_labels = False
+    gl0.right_labels = False
+    gl1.top_labels = False
+    gl1.left_labels = False
+    gl1.right_labels = False
 
     # plot the first contour plot on the first subplot
     cf1 = axs[0].contourf(lons, lats, corr_array_1, clevs, transform=proj, cmap="RdBu_r")
@@ -962,7 +1024,7 @@ def plot_corr_subplots(
 
     # Set up the colorbar
     # To be used for both subplots
-    cbar = plt.colorbar(cf1, ax=axs, orientation="horizontal", pad=0.05, shrink=0.8)
+    cbar = plt.colorbar(cf1, ax=axs, orientation="horizontal", pad=0.05, shrink=0.6)
 
     # If the plot_gridbox is not None
     if plot_gridbox is not None:
@@ -1026,8 +1088,21 @@ def plot_corr_subplots(
                     f"(P = {pval_1:.2f})"
                 ),
                 transform=axs[0].transAxes,
+                fontsize=fontsize,
                 verticalalignment="bottom",
                 horizontalalignment="left",
+                bbox=dict(facecolor="white", alpha=0.5),
+            )
+
+            # Include the figure label
+            axs[0].text(
+                0.95,
+                0.05,
+                fig_labels[0],
+                transform=axs[0].transAxes,
+                fontsize=fontsize,
+                verticalalignment="bottom",
+                horizontalalignment="right",
                 bbox=dict(facecolor="white", alpha=0.5),
             )
 
@@ -1040,6 +1115,7 @@ def plot_corr_subplots(
                     f"(P = {pval_2:.2f})"
                 ),
                 transform=axs[1].transAxes,
+                fontsize=fontsize,
                 verticalalignment="bottom",
                 horizontalalignment="left",
                 bbox=dict(facecolor="white", alpha=0.5),
@@ -1051,6 +1127,7 @@ def plot_corr_subplots(
                 0.95,
                 variable_1,
                 transform=axs[0].transAxes,
+                fontsize=fontsize,
                 verticalalignment="top",
                 horizontalalignment="left",
                 bbox=dict(facecolor="white", alpha=0.5),
@@ -1062,8 +1139,21 @@ def plot_corr_subplots(
                 0.95,
                 variable_2,
                 transform=axs[1].transAxes,
+                fontsize=fontsize,
                 verticalalignment="top",
                 horizontalalignment="left",
+                bbox=dict(facecolor="white", alpha=0.5),
+            )
+
+            # Include the figure label
+            axs[1].text(
+                0.95,
+                0.05,
+                fig_labels[1],
+                transform=axs[1].transAxes,
+                fontsize=fontsize,
+                verticalalignment="bottom",
+                horizontalalignment="right",
                 bbox=dict(facecolor="white", alpha=0.5),
             )
     else:
@@ -1071,6 +1161,18 @@ def plot_corr_subplots(
 
     # Set up the colorbar label
     cbar.set_label("Pearson correlation with ONDJFM NAO")
+
+    # # Specify a tight layout
+    # plt.tight_layout()
+
+    # Set up the current time
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Set up the fname
+    fname = f"{variable_1}_{variable_2}_nao_corr_plot_{current_time}.pdf"
+
+    # Save the plot
+    plt.savefig(os.path.join(plot_dir, fname), dpi=save_dpi)
 
     # Render the plot
     plt.show()
