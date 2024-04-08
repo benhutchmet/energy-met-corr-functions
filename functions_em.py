@@ -875,6 +875,10 @@ def plot_corr_subplots(
     axs[0].coastlines()
     axs[1].coastlines()
 
+    # Include the gridlines as dashed lines
+    axs[0].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
+    axs[1].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
+
     # plot the first contour plot on the first subplot
     cf1 = axs[0].contourf(lons, lats, corr_array_1, clevs, transform=proj, cmap="RdBu_r")
 
@@ -907,7 +911,7 @@ def plot_corr_subplots(
             plot_gridbox, list
         ), "The plot_gridbox must be a list of gridboxes."
         # Loop over the gridboxes
-        for gridbox in plot_gridbox:
+        for i, gridbox in enumerate(plot_gridbox):
             # Extract the lons and lats
             lon1, lon2 = gridbox["lon1"], gridbox["lon2"]
             lat1, lat2 = gridbox["lat1"], gridbox["lat2"]
@@ -953,7 +957,61 @@ def plot_corr_subplots(
             # Calculate the correlation
             corr_2, pval_2 = pearsonr(nao, corr_var_ts_gridbox_2)
 
-            # TODO: complete this function
+            # Include the correlation on the plot
+            axs[0].text(
+                0.05,
+                0.05,
+                (
+                    f"ACC = {corr_1:.2f}"
+                    f"(P = {pval_1:.2f})"
+                ),
+                transform=axs[0].transAxes,
+                verticalalignment="bottom",
+                horizontalalignment="left",
+                bbox=dict(facecolor="white", alpha=0.5),
+            )
+
+            # Include the correlation on the plot
+            axs[1].text(
+                0.05,
+                0.05,
+                (
+                    f"ACC = {corr_2:.2f}"
+                    f"(P = {pval_2:.2f})"
+                ),
+                transform=axs[1].transAxes,
+                verticalalignment="bottom",
+                horizontalalignment="left",
+                bbox=dict(facecolor="white", alpha=0.5),
+            )
+
+            # Include the variable name in the top left of the plot
+            axs[0].text(
+                0.05,
+                0.95,
+                variable_1,
+                transform=axs[0].transAxes,
+                verticalalignment="top",
+                horizontalalignment="left",
+                bbox=dict(facecolor="white", alpha=0.5),
+            )
+
+            # Include the variable name in the top left of the plot
+            axs[1].text(
+                0.05,
+                0.95,
+                variable_2,
+                transform=axs[1].transAxes,
+                verticalalignment="top",
+                horizontalalignment="left",
+                bbox=dict(facecolor="white", alpha=0.5),
+            )
+    else:
+        print("No gridboxes to plot.")
+
+    # Set up the colorbar label
+    cbar.set_label("Pearson correlation with ONDJFM NAO")
+
 
 
 
