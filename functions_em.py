@@ -609,21 +609,21 @@ def plot_corr(
     lon1_idx_grid = np.argmin(np.abs(lons - lon1_grid))
     lon2_idx_grid = np.argmin(np.abs(lons - lon2_grid))
 
-    # Print the indices
-    print("lon1_idx_grid: ", lon1_idx_grid)
-    print("lon2_idx_grid: ", lon2_idx_grid)
-    print("lat1_idx_grid: ", lat1_idx_grid)
-    print("lat2_idx_grid: ", lat2_idx_grid)
+    # # Print the indices
+    # print("lon1_idx_grid: ", lon1_idx_grid)
+    # print("lon2_idx_grid: ", lon2_idx_grid)
+    # print("lat1_idx_grid: ", lat1_idx_grid)
+    # print("lat2_idx_grid: ", lat2_idx_grid)
 
-    # # If lat1_idx_grid is greater than lat2_idx_grid, then switch them
-    # if lat1_idx_grid > lat2_idx_grid:
-    #     lat1_idx_grid, lat2_idx_grid = lat2_idx_grid, lat1_idx_grid
+    # # # If lat1_idx_grid is greater than lat2_idx_grid, then switch them
+    # # if lat1_idx_grid > lat2_idx_grid:
+    # #     lat1_idx_grid, lat2_idx_grid = lat2_idx_grid, lat1_idx_grid
 
-    # Print the indices
-    print("lon1_idx_grid: ", lon1_idx_grid)
-    print("lon2_idx_grid: ", lon2_idx_grid)
-    print("lat1_idx_grid: ", lat1_idx_grid)
-    print("lat2_idx_grid: ", lat2_idx_grid)
+    # # Print the indices
+    # print("lon1_idx_grid: ", lon1_idx_grid)
+    # print("lon2_idx_grid: ", lon2_idx_grid)
+    # print("lat1_idx_grid: ", lat1_idx_grid)
+    # print("lat2_idx_grid: ", lat2_idx_grid)
 
     # Constrain the lats and lons to the grid
     lats = lats[lat1_idx_grid:lat2_idx_grid]
@@ -634,6 +634,12 @@ def plot_corr(
 
     # Constrain the pval_array to the grid
     pval_array = pval_array[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+
+    # # print the shape of the pval_array
+    # print("pval_array.shape: ", pval_array.shape)
+
+    # # Print the values of the pval_array
+    # print("pval_array: ", pval_array)
 
     # If nao and corr_var_ts are not None
     if nao is not None and corr_var_ts is not None:
@@ -840,6 +846,22 @@ def plot_corr_subplots(
     lon1_idx_grid = np.argmin(np.abs(lons - lon1_grid))
     lon2_idx_grid = np.argmin(np.abs(lons - lon2_grid))
 
+    # # Print the indices
+    # print("lon1_idx_grid: ", lon1_idx_grid)
+    # print("lon2_idx_grid: ", lon2_idx_grid)
+    # print("lat1_idx_grid: ", lat1_idx_grid)
+    # print("lat2_idx_grid: ", lat2_idx_grid)
+
+    # # # If lat1_idx_grid is greater than lat2_idx_grid, then switch them
+    # # if lat1_idx_grid > lat2_idx_grid:
+    # #     lat1_idx_grid, lat2_idx_grid = lat2_idx_grid, lat1_idx_grid
+
+    # # Print the indices
+    # print("lon1_idx_grid: ", lon1_idx_grid)
+    # print("lon2_idx_grid: ", lon2_idx_grid)
+    # print("lat1_idx_grid: ", lat1_idx_grid)
+    # print("lat2_idx_grid: ", lat2_idx_grid)
+
     # Constrain the lats and lons to the grid
     lats = lats[lat1_idx_grid:lat2_idx_grid]
     lons = lons[lon1_idx_grid:lon2_idx_grid]
@@ -847,11 +869,29 @@ def plot_corr_subplots(
     # Constrain the corr_array to the grid
     corr_array_1 = corr_array_1[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
 
+    # # print the shape of the pval_array_1
+    # print("pval_array_1.shape: ", pval_array_1.shape)
+
+    # # Print the values of the pval_array_1
+    # print("pval_array_1: ", pval_array_1)
+
     # Constrain the pval_array to the grid
     pval_array_1 = pval_array_1[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
 
+    # # Print the values of the pval_array_1
+    # print("pval_array_1: ", pval_array_1)
+
+    # # print the shape of the pval_array_2
+    # print("pval_array_1.shape: ", pval_array_1.shape)
+
     # Constrain the corr_array to the grid
     corr_array_2 = corr_array_2[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+
+    # # print the shape of the pval_array_2
+    # print("pval_array_2.shape: ", pval_array_2.shape)
+
+    # # Print the values of the pval_array_2
+    # print("pval_array_2: ", pval_array_2)
 
     # Constrain the pval_array to the grid
     pval_array_2 = pval_array_2[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
@@ -876,8 +916,8 @@ def plot_corr_subplots(
     axs[1].coastlines()
 
     # Include the gridlines as dashed lines
-    axs[0].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
-    axs[1].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
+    axs[0].gridlines(linestyle="--", alpha=0.5, draw_labels=True, xlabels_top=False, ylabels_right=False)
+    axs[1].gridlines(linestyle="--", alpha=0.5, draw_labels=True, xlabels_top=False, ylabels_right=False, ylabels_left=False)
 
     # plot the first contour plot on the first subplot
     cf1 = axs[0].contourf(lons, lats, corr_array_1, clevs, transform=proj, cmap="RdBu_r")
@@ -888,23 +928,31 @@ def plot_corr_subplots(
     # if any of the p values are greater or less than the significance threshold
     # Set where the p-values are greater or less than
     # the significance threshold to nan
-    # NOTE: This is the inverse to the function above
-    pval_array_1[(pval_array_1 < sig_threshold) | (pval_array_1 > 1 - sig_threshold)] = np.nan
-
-    # Print the values of the pval_array_1
-    print("pval_array_1: ", pval_array_1)
+    pval_array_1[(pval_array_1 > sig_threshold) & (pval_array_1 < 1 - sig_threshold)] = np.nan
 
     # Assert that not all of the values are nan
     assert not np.all(np.isnan(pval_array_1)), "All values in the pval_array_1 are nan."
 
-    # same for the other pval_array
-    pval_array_2[(pval_array_2 < sig_threshold) | (pval_array_2 > 1 - sig_threshold)] = np.nan
+    # assert that not all of the values are nan
+    assert not np.all(np.isnan(pval_array_1)), "All values in the pval_array_1 are nan."
 
-    # Print the values of the pval_array_2
+    # print the pval_array_2
     print("pval_array_2: ", pval_array_2)
 
-    # Assert that not all of the values are nan
+    # same for the other pval_array
+    pval_array_2[(pval_array_2 > sig_threshold) & (pval_array_2 < 1 - sig_threshold)] = np.nan
+
+    # assert that not all of the values are nan
     assert not np.all(np.isnan(pval_array_2)), "All values in the pval_array_2 are nan."
+
+    # assert that not all of the values are nan
+    assert not np.all(np.isnan(pval_array_2)), "All values in the pval_array_2 are nan."
+
+    # How can I invert the p_val_arrays here?
+    # so that where the values are NaN, these are replaced with ones
+    # and where the values are not NaN, these are replaced with NaNs
+    # pval_array_1 = np.where(np.isnan(pval_array_1), 1, np.nan)
+    # pval_array_2 = np.where(np.isnan(pval_array_2), 1, np.nan)
 
     # Plot the p-values
     axs[0].contourf(lons, lats, pval_array_1, hatches=["...."], alpha=0.0, transform=proj)
@@ -974,7 +1022,7 @@ def plot_corr_subplots(
                 0.05,
                 0.05,
                 (
-                    f"ACC = {corr_1:.2f}"
+                    f"ACC = {corr_1:.2f} "
                     f"(P = {pval_1:.2f})"
                 ),
                 transform=axs[0].transAxes,
@@ -988,7 +1036,7 @@ def plot_corr_subplots(
                 0.05,
                 0.05,
                 (
-                    f"ACC = {corr_2:.2f}"
+                    f"ACC = {corr_2:.2f} "
                     f"(P = {pval_2:.2f})"
                 ),
                 transform=axs[1].transAxes,
