@@ -1012,8 +1012,11 @@ def plot_corr_subplots(
     # Set up the colorbar label
     cbar.set_label("Pearson correlation with ONDJFM NAO")
 
+    # Render the plot
+    plt.show()
 
-
+    # Return none
+    return None
 
 # Define a function to process the data for plotting scatter plots
 def process_data_for_scatter(
