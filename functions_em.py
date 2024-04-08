@@ -889,10 +889,22 @@ def plot_corr_subplots(
     # Set where the p-values are greater or less than
     # the significance threshold to nan
     # NOTE: This is the inverse to the function above
-    pval_array_1[(pval_array_1 < sig_threshold) & (pval_array_1 > 1 - sig_threshold)] = np.nan
+    pval_array_1[(pval_array_1 < sig_threshold) | (pval_array_1 > 1 - sig_threshold)] = np.nan
+
+    # Print the values of the pval_array_1
+    print("pval_array_1: ", pval_array_1)
+
+    # Assert that not all of the values are nan
+    assert not np.all(np.isnan(pval_array_1)), "All values in the pval_array_1 are nan."
 
     # same for the other pval_array
-    pval_array_2[(pval_array_2 < sig_threshold) & (pval_array_2 > 1 - sig_threshold)] = np.nan
+    pval_array_2[(pval_array_2 < sig_threshold) | (pval_array_2 > 1 - sig_threshold)] = np.nan
+
+    # Print the values of the pval_array_2
+    print("pval_array_2: ", pval_array_2)
+
+    # Assert that not all of the values are nan
+    assert not np.all(np.isnan(pval_array_2)), "All values in the pval_array_2 are nan."
 
     # Plot the p-values
     axs[0].contourf(lons, lats, pval_array_1, hatches=["...."], alpha=0.0, transform=proj)
