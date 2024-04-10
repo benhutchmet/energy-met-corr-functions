@@ -1792,6 +1792,7 @@ def correlate_nao_uread(
     model_config: dict = None,
     df_dir: str = "/gws/nopw/j04/canari/users/benhutch/nao_stats_df/",
     model_arr_dir: str = "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/",
+    level: int = 0,
 ) -> pd.DataFrame:
     """
     Function which correlates the observed NAO (from ERA5) with demand,
@@ -1869,6 +1870,9 @@ def correlate_nao_uread(
     model_arr_dir
         The directory in which the arrays containing the
         processed model data are stored
+
+    level
+        The level to use for the model data
 
     Returns:
 
@@ -1967,6 +1971,11 @@ def correlate_nao_uread(
     if "expver" in clim_var.coords:
         # Combine the first two expver variables
         clim_var = clim_var.sel(expver=1).combine_first(clim_var.sel(expver=5))
+
+    # if level is not 0
+    if level != 0:
+        # Extract the data for the level
+        clim_var = clim_var.sel(plev=level)
 
     # Constrain obs to ONDJFM
     clim_var = clim_var.sel(time=clim_var.time.dt.month.isin(months))
