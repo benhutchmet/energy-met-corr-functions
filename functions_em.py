@@ -168,6 +168,7 @@ def calc_nao_spatial_corr(
     nao_n_grid: dict = dicts.iceland_grid_corrected,
     nao_s_grid: dict = dicts.azores_grid_corrected,
     sig_threshold: float = 0.05,
+    level: int = 0,
 ):
     """
     Calculates the spatial correlations between the NAO index (winter default)
@@ -210,6 +211,10 @@ def calc_nao_spatial_corr(
 
     sig_threshold: float
         The significance threshold for the correlation.
+
+    level: int
+        The pressure level at which to extract the observed variable.
+        in Pa, so 850 hPa = 85000 Pa.
 
     Returns:
     --------
@@ -269,6 +274,18 @@ def calc_nao_spatial_corr(
 
     # Load the observations for the matching var
     corr_var_field = fnc.load_obs(variable=corr_var, regrid_obs_path=corr_var_obs_file)
+
+    # print the dims of the corr
+    print("corr_var_field.dims: ", corr_var_field)
+
+    # If level is not 0
+    if level != 0:
+        # Extract the level
+        corr_var_field = corr_var_field.extract(iris.Constraint(air_pressure
+                                                                =level))
+
+    # print the dimensions of the corr_var_field
+    print("corr_var_field.dims: ", corr_var_field)
 
     # extract the months
     months = dicts.season_month_map[season]
