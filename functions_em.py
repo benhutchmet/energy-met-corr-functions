@@ -27,6 +27,7 @@ from datetime import datetime
 import geopandas as gpd
 import regionmask
 
+sys.path.append("/home/users/benhutch/energy-met-corr/")
 # Import local modules
 import dictionaries_em as dicts
 
@@ -3799,3 +3800,354 @@ def plot_time_series(
 
     # return none
     return None
+
+# Write a function to plot with mean
+# state for a variable over Europe
+def plot_winter_mean(
+    obs_var: str,
+    obs_var_data_path: str,
+    months: list = [10, 11, 12, 1, 2, 3],
+    season: str = "ONDJFM",
+    start_year=1960,
+    end_year=2023,
+    gridbox_plot: dict = dicts.north_atlantic_grid_plot,
+    figsize_x: int = 10,
+    figsize_y: int = 8,
+    cmap: str = "coolwarm",
+    vmin: float = None,
+    vmax: float = None,
+):
+    """
+    Function which calculates the mean state for the observed variable over 
+    Europe.
+    
+    Args:
+    
+    obs_var: str
+        The observed variable to use for calculating the mean state.
+        
+    obs_var_data_path: str
+        The path to the observed variable data.
+        
+    months: list
+        The months to use for the mean state.
+        
+    season: str
+        The season to use for the mean state.
+        
+    start_year: int
+        The start year for the mean state.
+        
+    end_year: int
+        The end year for the mean state.
+
+    gridbox_plot: dict
+        The dictionary containing the gridbox information to plot.
+
+    figsize_x: int
+        The x size of the figure.
+
+    figsize_y: int
+        The y size of the figure.
+
+    cmap: str
+        The colormap to use for the plot.
+
+    vmin: float
+        The minimum value for the colorbar.
+
+    vmax: float
+        The maximum value for the colorbar.
+        
+    Returns:
+
+    None
+    """
+
+    # Load in the data
+    ds = xr.open_mfdataset(
+        obs_var_data_path,
+        combine="by_coords",
+        parallel=True,
+        chunks={"time": "auto", "latitude": "auto", "longitude": "auto"},
+    )[obs_var]
+
+    # If expver is a variable in the dataset
+    if "expver" in ds.coords:
+        # Combine the first two expver variables
+        ds = ds.sel(expver=1).combine_first(ds.sel(expver=5))
+
+    # if the variable is ssrd or rsds
+    if obs_var in ["ssrd", "rsds"]:
+        # divide by 86400 to convert from J/m^2 to W m/m^2
+        ds = ds / 86400
+
+    # Constrain obs to ONDJFM
+    ds = ds.sel(time=ds.time.dt.month.isin(months))
+
+    # Constrain the years
+    ds = ds.sel(time=slice(f"{start_year}", f"{end_year}"))
+
+    # Calculate the mean over the season
+    ds_mean = ds.mean(dim="time")
+
+    # Set up the figure
+    fig = plt.figure(figsize=(figsize_x, figsize_y))
+    ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+
+    if vmin is None and vmax is None:
+        # Set the vmin and vmax
+        vmin, vmax = ds_mean.min().values, ds_mean.max().values
+
+    if obs_var not in ["ssrd", "rsds", "var228", "pr", "si10", "sfcWind"]:
+        # set up the units
+        units = ds_mean.units
+    elif obs_var in ["si10", "sfcWind"]:
+        # Set up the units
+        units = "m s$^{-1}$"
+    elif obs_var in ["pr", "var228"]:
+        # Set up the units
+        units = "kg m$^{-2}$"
+    else:
+        # Set up the units
+        units = "W m$^{-2}$"
+
+    # Include borders
+    ax.add_feature(cfeature.BORDERS, linewidth=0.5, linestyle="-")
+
+    # Plot the mean state
+    ds_mean.plot(ax=ax,
+                transform=ccrs.PlateCarree(),
+                cmap=cmap,
+                vmin=vmin,
+                vmax=vmax,
+                cbar_kwargs={
+                    "label": f"{obs_var} ({units})",
+                    "orientation": "horizontal",
+                    "shrink": 0.8,
+                    "pad": 0.05,
+                    "extend": "both",  # Extend the colorbar at both ends
+                             },
+    )
+    # Include coastlines
+    ax.coastlines()
+
+    # Set the title
+    ax.set_title(f"{obs_var} mean state over Europe")
+
+    # Constrain to specific bounds
+    ax.set_extent([gridbox_plot["lon1"], gridbox_plot["lon2"],
+                   gridbox_plot["lat1"], gridbox_plot["lat2"]],
+                  crs=ccrs.PlateCarree())
+    
+    # Show the plot
+    plt.show()
+
+    return None
+
+# Define another function to plot the data from the CLEARHEADS work
+# Either in the EEZ or NUTS domains
+def plot_eu_clearheads(
+    file: str,
+    shp_file: str,
+    shp_file_dir: str,
+    label: str,
+    months: list = [10, 11, 12, 1, 2, 3],
+    clearheads_dir: str = dicts.clearheads_dir,
+    figsize_x: int = 10,
+    figsize_y: int = 8,
+    trend_level: float = None,
+    start_date: str = "1950-01-01",
+    time_units: str = "h",
+    start_year: int = 1960,
+    end_year: int = 2023,
+    values="detrended_data",
+    cmap="coolwarm",
+    gridbox_plot: dict = dicts.north_atlantic_grid_plot,
+):
+    """
+    Plots the climatology over Europe for the given variable.
+    
+    Args:
+    
+    file: str
+        The filename for the data.
+        
+    shp_file: str
+        The shapefile to use for plotting.
+        
+    shp_file_dir: str
+        The directory containing the shapefile.
+
+    label: str
+        The label for the plot.
+        
+    clearheads_dir: str
+        The directory containing the CLEARHEADS data.
+        
+    figsize_x: int
+        The x size of the figure.
+        
+    figsize_y: int
+        The y size of the figure.
+        
+    trend_level: float
+        The level of the trend to plot.
+
+    start_date: str
+        The start date for the time axis.
+
+    time_units: str
+        The time units for the time axis.
+
+    start_year: int
+        The start year for the data.
+
+    end_year: int
+        The end year for the data.
+    
+    months: list
+        The months to plot.
+
+    values: str
+        The values to plot from the data.
+
+    cmap
+        The colormap to use for the plot.
+
+    gridbox_plot: dict
+        The dictionary containing the gridbox information to plot.
+        
+    Returns:
+    
+    None
+    """
+
+    # asssert that the file exists in the clearheads directory
+    assert os.path.exists(os.path.join(clearheads_dir, file)), f"The file {file} does not exist."
+
+    # assert that the shapefile exists
+    assert os.path.exists(os.path.join(shp_file_dir, shp_file)), f"The shapefile {shp_file} does not exist."
+
+    # Load teh data
+    ds = xr.open_dataset(os.path.join(clearheads_dir, file))
+
+    # extract the nuts keys
+    NUTS_keys = ds.NUTS_keys.values
+
+    # if trend_level is not None
+    if trend_level is not None:
+        # extract the trend levels
+        trend_levels = ds.trend_levels.values
+
+        # Find the index of the trend level
+        idx = np.where(trend_levels == trend_level)[0][0]
+
+        # Extract the data
+        ds = ds.isel(trend=idx)
+
+    # turn the data into a dataframe
+    df = ds.to_dataframe()
+
+    # pivot the dataframe
+    df = df.reset_index().pivot(
+        index="time_in_hours_from_first_jan_1950",
+        columns="NUTS",
+        values=values,
+    )
+
+    # Add the NUTS_keys to the columns
+    df.columns = NUTS_keys
+
+    # Convert 'time_in_hours_from_first_jan_1950' to datetime
+    df.index = pd.to_datetime(df.index, unit=time_units, origin=start_date)
+
+    # restrict the data to the start and end years
+    df = df.loc[f"{start_year}":f"{end_year}"]
+
+    # Collapse the dataframe into monthly averages
+    df = df.resample("M").mean()
+
+    # Select only the months of interest
+    df = df[df.index.month.isin(months)]
+
+    # Calculate the time average
+    df = df.mean()
+
+    if "NUTS" in shp_file:
+        # Load the shapefile
+        shapefile = gpd.read_file(os.path.join(shp_file_dir, shp_file))
+
+        # Restrict to level code 0
+        shapefile = shapefile[shapefile.LEVL_CODE == 0]
+
+        # Extract the second element of the tuple
+        countries_codes = list(dicts.countries_nuts_id.values())
+
+        # Limit the gpd to the countries in the dictionary
+        shapefile = shapefile[shapefile.NUTS_ID.isin(countries_codes)]
+
+        # Keep only the NUTS_ID, NUTS_NAME, and geometry columns
+        shapefile = shapefile[["NUTS_ID", "NUTS_NAME", "geometry"]]
+
+        # Loop over the columns in the shapefile
+        # and add the values to the shapefile
+        for index, row in shapefile.iterrows():
+            # Extract the NUTS code
+            nuts_id = row["NUTS_ID"]
+
+            try:
+                # Find the index of the row in df
+                # which matches the NUTS code
+                idx = df.index.get_loc(nuts_id)
+            except KeyError:
+                print(f"The NUTS code {nuts_id} is not in the dataframe.")
+                continue
+
+            # If the index is not None
+            if idx is not None:
+                # Add the value to the shapefile
+                shapefile.loc[index, "value"] = df.iloc[idx]
+            else:
+                print(f"The NUTS code {nuts_id} is not in the dataframe.")
+                continue
+
+    # Assert that shapefile has the value column
+    assert "value" in shapefile.columns, "The value column is not in the shapefile."
+
+    # Set up the figure
+    fig = plt.figure(figsize=(figsize_x, figsize_y))
+
+    # Set up the axes
+    ax = plt.axes(projection=ccrs.PlateCarree())
+
+    # plot the shapefile
+    shapefile.plot(
+        column="value",
+        ax=ax,
+        legend=True,
+        cmap=cmap,
+        legend_kwds={
+        "label": label,
+        "orientation": "horizontal",
+        "shrink": 0.8,
+        "pad": 0.01,
+    },
+    )
+
+    # add the coastlines
+    ax.coastlines()
+
+    # constrain the plot to Europe
+    ax.set_extent([gridbox_plot["lon1"], gridbox_plot["lon2"],
+                   gridbox_plot["lat1"], gridbox_plot["lat2"]],
+                  crs=ccrs.PlateCarree())
+
+    return None
+
+    
+
+    
+
+
+
