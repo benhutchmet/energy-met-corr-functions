@@ -4145,7 +4145,171 @@ def plot_eu_clearheads(
 
     return None
 
+# Define a function for aggregating correlations for multiple different
+# observed predictors
+# e.g. for onshore wind we consider:
+# NAO
+# Delta P
+# 10m wind speed
+# 850U
+def aggregate_obs_correlations(
+    uread_fname: str,
+    shp_fname: str,
+    shp_fpath: str,
+    obs_vars: list,
+    obs_var_data_paths: list,
+    obs_var_levels: list,
+    uread_fpath: str = dicts.clearheads_dir,
+    nao_n_grid: dict = dicts.iceland_grid_corrected,
+    nao_s_grid: dict = dicts.azores_grid_corrected,
+    delta_p_n_grid: dict = dicts.uk_n_box_corrected,
+    delta_p_s_grid: dict = dicts.uk_s_box_corrected,
+    save_df_dir: str = "/home/users/benhutch/energy-met-corr/df/",
+    save_fname: str = "corr_df_combined.csv",
+) -> pd.DataFrame:
+    """
+    Function which aggregates the correlations for multiple observed predictors using the correlate_nao_uread function and pandas.
+    The output is saved to a csv file.
     
+    Args:
+    
+    uread_fname: str
+        The filename for the UREAD data.
+        
+    shp_fname: str
+        The filename for the shapefile.
+        
+    shp_fpath: str
+        The filepath for the shapefile.
+        
+    obs_vars: list
+        The list of observed variables to use.
+        
+    obs_var_data_paths: list
+        The list of observed variable data paths.
+        
+    obs_var_levels: list
+        The list of observed variable levels.
+
+    uread_fpath: str
+        The filepath for the UREAD data.
+        
+    nao_n_grid: dict
+        The dictionary containing the gridbox information for the NAO North.
+        Default is dicts.iceland_grid_corrected.
+        
+    nao_s_grid: dict
+        The dictionary containing the gridbox information for the NAO South.
+        Default is dicts.azores_grid_corrected.
+        
+    delta_p_n_grid: dict
+        The dictionary containing the gridbox information for the Delta P North.
+        Default is dicts.uk_n_box_corrected.
+        
+    delta_p_s_grid: dict
+        The dictionary containing the gridbox information for the Delta P South.
+        Default is dicts.uk_s_box_corrected.
+        
+    save_df_dir: str
+        The directory to save the dataframe to.
+        
+    Output:
+
+    df: pd.DataFrame
+        The dataframe containing the aggregated correlations.
+    """
+
+    # Assert that the shapefile exists
+    assert os.path.exists(os.path.join(shp_fpath, shp_fname)), f"The shapefile {shp_fname} does not exist."
+
+    # Assert that the uread file exists
+    assert os.path.exists(os.path.join(uread_fpath, uread_fname)), f"The UREAD file {uread_fname} does not exist."
+
+    # assert that obs_var_levels is a list containing ints
+    assert all(isinstance(x, int) for x in obs_var_levels), "The obs_var_levels list must contain integers."
+
+    # Calculate the correlations for the NAO
+    _, corr_df_nao = correlate_nao_uread(
+        filename=uread_fname,
+    )
+
+    # append _nao to the correlation and p-value columns
+    # using rename
+    corr_df_nao = corr_df_nao.rename(
+        columns={"correlation": "correlation_nao", "p-value": "p-value_nao"}
+    )
+
+    # set the index to the region column
+    corr_df_nao = corr_df_nao.set_index("region", inplace=True)
+
+    # Calculate the correlations for the Delta P
+    _, corr_df_delta_p = correlate_nao_uread(
+        filename=uread_fname,
+        nao_n_grid=delta_p_n_grid,
+        nao_s_grid=delta_p_s_grid,
+    )
+
+    # append _delta_p to the correlation and p-value columns
+    # using rename
+    corr_df_delta_p = corr_df_delta_p.rename(
+        columns={"correlation": "correlation_delta_p", "p-value": "p-value_delta_p"}
+    )
+
+    # set the index to the region column
+    corr_df_delta_p = corr_df_delta_p.set_index("region", inplace=True)
+
+    # Join the dataframes
+    corr_df_combined = corr_df_nao.join(corr_df_delta_p, how="inner")
+
+    # Loop over the observed variables, paths and levels using zip
+    for var, path, level in zip(obs_vars, obs_var_data_paths, obs_var_levels):
+        
+        # if level is not zero
+        if level != 0:
+            # add the level to the var_name
+            var_name = f"{var}_{level}"
+
+            # Calculate the correlations
+            _, corr_df, _ = correlate_nao_uread(
+                filename=uread_fname,
+                shp_file=shp_fname,
+                shp_file_dir=shp_fpath,
+                obs_var=var,
+                obs_var_data_path=path,
+                level=level,
+            )
+
+            # append _var_name to the correlation and p-value columns
+            # using rename
+            corr_df = corr_df.rename(
+                columns={"correlation": f"correlation_{var_name}", "p-value": f"p-value_{var_name}"}
+            )
+        else:
+            # Calculate the correlations
+            _, corr_df, _ = correlate_nao_uread(
+                filename=uread_fname,
+                shp_file=shp_fname,
+                shp_file_dir=shp_fpath,
+                obs_var=var,
+                obs_var_data_path=path,
+            )
+
+            # append _var_name to the correlation and p-value columns
+            # using rename
+            corr_df = corr_df.rename(
+                columns={"correlation": f"correlation_{var}", "p-value": f"p-value_{var}"}
+            )
+
+        # join the dataframes
+        corr_df_combined = corr_df_combined.join(corr_df, how="inner")
+
+    # For the save_path
+    save_path = os.path.join(save_df_dir, save_fname)
+
+    # Save the dataframe
+    corr_df_combined.to_csv(save_path)
+
+    return corr_df_combined
 
     
 
