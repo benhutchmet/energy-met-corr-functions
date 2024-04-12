@@ -4310,8 +4310,3 @@ def aggregate_obs_correlations(
     corr_df_combined.to_csv(save_path)
 
     return corr_df_combined
-
-    
-
-
-
