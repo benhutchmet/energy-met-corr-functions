@@ -5383,3 +5383,129 @@ def merge_dfs_by_region(
 
     return base_df
 
+# Write a function to calculate the correlations
+# between model data and obs data
+# within specific regions specified by the regionmask
+# like aggregate obs correlations
+# but for model data
+def aggregate_model_correlations(
+    shp_fname: str,
+    shp_fpath: str,
+    obs_vars: list,
+    obs_var_data_paths: list,
+    obs_var_levels: list,
+    model_configs: list,
+    save_df_dir: str = "/home/users/benhutch/energy-met-corr/df/",
+    save_fname: str = "corr_df_combined.csv",
+) -> pd.DataFrame:
+    """
+    Aggregates the peformance of the hindcast for predicting different climate
+    variables over the different regions of Europe.
+
+    Args:
+    -----
+
+    shp_fname: str
+        The filename for the shapefile.
+
+    shp_fpath: str
+        The filepath for the shapefile.
+
+    obs_vars: list
+        The list of observed variables to use.
+
+    obs_var_data_paths: list
+        The list of observed variable data paths.
+
+    obs_var_levels: list
+        The list of observed variable levels.
+
+    model_configs: list
+        The list of model configurations.
+
+    save_df_dir: str
+        The directory to save the dataframe to.
+
+    save_fname: str
+        The filename to save the dataframe to.
+
+    Output:
+    -------
+
+    df: pd.DataFrame
+        The dataframe containing the aggregated correlations.
+
+    """
+
+    # Assert that the shapefile exists
+    assert os.path.exists(os.path.join(shp_fpath, shp_fname)), f"The shapefile {shp_fname} does not exist."
+
+    # assert that obs_var_levels is a list containing ints
+    assert all(isinstance(x, int) for x in obs_var_levels), "The obs_var_levels list must contain integers."
+
+    # Loop over the model configurations
+    for var, path, level, config in zip(obs_vars, obs_var_data_paths, obs_var_levels, model_configs):
+        
+        # if level is not zero
+        if level != 0:
+            # add the level to the var_name
+            var_name = f"{var}_{level}"
+
+            # Calculate the correlations
+            # doesn't matter what uread fname is used in this case
+            _, _, _, _, corr_df = correlate_nao_uread(
+                filename="NUTS_0_wp_ons_sim_1_historical_loc_weighted.nc",
+                shp_file=shp_fname,
+                shp_file_dir=shp_fpath,
+                obs_var=var,
+                obs_var_data_path=path,
+                use_model_data=True,
+                model_config=config,
+                level=level,
+            )
+
+            # append _var_name to the correlation and p-value columns
+            # using rename
+            corr_df = corr_df.rename(
+                columns={"correlation": f"correlation_{var_name}", "p-value": f"p-value_{var_name}"}
+            )
+
+            # Limit the region column to the first two characters
+            corr_df["region"] = corr_df["region"].str[:2]
+
+        else:
+            # Calculate the correlations
+            _, _, _, _, corr_df = correlate_nao_uread(
+                filename=config,
+                shp_file=shp_fname,
+                shp_file_dir=shp_fpath,
+                obs_var=var,
+                obs_var_data_path=path,
+                use_model_data=True,
+                model_config=config,
+            )
+
+            # append _var_name to the correlation and p-value columns
+            # using rename
+            corr_df = corr_df.rename(
+                columns={"correlation": f"correlation_{var}", "p-value": f"p-value_{var}"}
+            )
+
+            # Limit the region column to the first two characters
+            corr_df["region"] = corr_df["region"].str[:2]
+
+        # Set the index as the region column
+        corr_df.set_index("region", inplace=True)
+
+    # if the save_df_dir does not exist
+    if not os.path.exists(save_df_dir):
+        # make the directory
+        os.makedirs(save_df_dir)
+
+    # Form the save_path
+    save_path = os.path.join(save_df_dir, save_fname)
+
+    # Save the dataframe
+    corr_df.to_csv(save_path)
+
+    return corr_df
