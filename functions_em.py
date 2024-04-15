@@ -4336,11 +4336,22 @@ def plot_time_series(
     # Set up the figure
     fig, ax = plt.subplots(figsize=(figsize_x, figsize_y))
 
+    # if predictor col is "NAO anomaly (Pa)"
+    # then divide by 100
+    if predictor_col in ["NAO anomaly (Pa)", "model_nao_mean"]:
+        df[predictor_col] = df[predictor_col] / 100
+
     # Plot the model NAO mean
     ax.plot(df.index, df[f"{predictor_col}"], color="b")
 
     # Plot the y label
     ax.set_ylabel(ylabel, color="b")
+
+    # set the yticks
+    ax.tick_params("y", colors="b")
+
+    # Include a horixzontal black dashed line at y=0
+    plt.axhline(0, color="black", linestyle="--")
 
     if twin_axes is True:
         # Create a twin axes
@@ -4376,9 +4387,6 @@ def plot_time_series(
     )
 
     # print(p_val)
-
-    # Include a horixzontal black dashed line at y=0
-    plt.axhline(0, color="black", linestyle="--")
 
     # Include a legend
     plt.legend(loc="upper right")
@@ -5395,6 +5403,7 @@ def aggregate_model_correlations(
     obs_var_data_paths: list,
     obs_var_levels: list,
     model_configs: list,
+    model_arr_dirs: list,
     save_df_dir: str = "/home/users/benhutch/energy-met-corr/df/",
     save_fname: str = "corr_df_combined.csv",
 ) -> pd.DataFrame:
@@ -5422,6 +5431,9 @@ def aggregate_model_correlations(
 
     model_configs: list
         The list of model configurations.
+
+    model_arr_dirs: list
+        The list of model array directories.
 
     save_df_dir: str
         The directory to save the dataframe to.
@@ -5461,6 +5473,7 @@ def aggregate_model_correlations(
                 obs_var_data_path=path,
                 use_model_data=True,
                 model_config=config,
+                model_arr_dir=model_arr_dirs,
                 level=level,
             )
 
@@ -5483,6 +5496,7 @@ def aggregate_model_correlations(
                 obs_var_data_path=path,
                 use_model_data=True,
                 model_config=config,
+                model_arr_dir=model_arr_dirs,
             )
 
             # append _var_name to the correlation and p-value columns
@@ -5509,3 +5523,43 @@ def aggregate_model_correlations(
     corr_df.to_csv(save_path)
 
     return corr_df
+
+obs_vars = ["si10", "var131"]
+obs_var_data_paths = [dicts.regrid_file, dicts.obs_u_850_regrid]
+obs_var_levels = [0, 85000]
+
+# set up the model dict for si10
+# model config for 10m wind speeds
+model_config_sfcWind = {
+    "variable": "sfcWind",
+    "season": "ONDJFM",
+    "region": "global",
+    "nao": "nao_default",
+    "start_year": 1961,
+    "end_year": 2014,
+    "forecast_range": "2-9",
+    "lag": 4,
+    "method": "nao_matched",
+}
+
+# Set up the model config for 850U
+model_config_850u = {
+    "variable": "ua",
+    "season": "ONDJFM",
+    "region": "global",
+    "nao": "nao_default",
+    "start_year": 1961,
+    "end_year": 2014,
+    "forecast_range": "2-9",
+    "lag": 4,
+    "method": "nao_matched",
+}
+
+# make the list of model configs
+model_configs = [model_config_sfcWind, model_config_850u]
+
+# make the list of model array directories
+model_arr_dirs = [
+    "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/",
+    "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/test-sfcWind",
+]
