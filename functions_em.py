@@ -3113,13 +3113,574 @@ def correlate_nao_uread(
                 # Append to the dataframe
                 corr_df = pd.concat([corr_df, corr_df_to_append], ignore_index=True)
 
+            # Create a new dataframe for the hindcast obs corr
+            model_corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
+
+            # Find the length of the merged_df.columns which don't contain "Si10"
+            n_cols = len(
+                [
+                    col
+                    for col in merged_df.columns
+                    if "_obs" not in col and "time" not in col
+                ]
+            )
+
+            # Loop over the columns
+            for i in tqdm(range(n_cols)):
+                # Extract the column
+                col = merged_df.columns[i]
+
+                # If merged_df[f"{col_iso}_{obs_var}"] doesn't exist
+                # Then create this
+                # and fill with NaN values
+                if f"{col}_{obs_var}" not in merged_df.columns:
+                    merged_df[f"{col}_{obs_var}"] = np.nan
+
+                # Check whether the length of the column is 4
+                assert (
+                    len(merged_df[col]) >= 2
+                ), f"The length of the column is less than 2 for {col}"
+
+                # Same check for the other one
+                assert (
+                    len(merged_df[f"{col}_{obs_var}"]) >= 2
+                ), f"The length of the column is less than 2 for {col_iso}_{obs_var}"
+
+                # If merged_df[f"{col_iso}_{obs_var}"] contains NaN values
+                # THEN fill the corr and pval with NaN
+                if merged_df[f"{col}_{obs_var}"].isnull().values.any():
+                    corr = np.nan
+                    pval = np.nan
+
+                    # Append to the dataframe
+                    model_corr_df_to_append = pd.DataFrame(
+                        {"region": [col], "correlation": [corr], "p-value": [pval]}
+                    )
+
+                    # Append to the dataframe
+                    model_corr_df = pd.concat(
+                        [model_corr_df, model_corr_df_to_append], ignore_index=True
+                    )
+
+                    # continue to the next iteration
+                    continue
+
+                # Calculate corr between wind power (GW) and wind speed
+                corr, pval = pearsonr(merged_df[col], merged_df[f"{col}_{obs_var}"])
+
+                # Append to the dataframe
+                model_corr_df_to_append = pd.DataFrame(
+                    {"region": [col], "correlation": [corr], "p-value": [pval]}
+                )
+
+                # Append to the dataframe
+                model_corr_df = pd.concat(
+                    [model_corr_df, model_corr_df_to_append], ignore_index=True
+                )
+
             # Return the dataframes
-            return merged_df, corr_df, shapefile, merged_df_ts
+            return merged_df, corr_df, shapefile, merged_df_ts, model_corr_df
         elif shp_file is not None and "eez" in shp_file and use_model_data is True:
             print("Using model data averaged over EEZ regions")
 
-            # Not yet implemented error
-            raise NotImplementedError("This function is not yet implemented.")
+            # Assert that the model directory exists
+            assert os.path.isdir(
+                model_arr_dir
+            ), f"The model array directory: {model_arr_dir} does not exist."
+
+            # Set up the filename root for the data
+            # assert that variable, season, region, start_year, end_year,
+            # forecast range, lag, and method are in model_config
+            assert all(
+                key in model_config
+                for key in [
+                    "variable",
+                    "season",
+                    "region",
+                    "start_year",
+                    "end_year",
+                    "forecast_range",
+                    "lag",
+                    "method",
+                ]
+            ), "One or more required keys are missing from model_config"
+
+            # Form the root of the filename
+            fnames_root = f"{model_config['variable']}_{model_config['season']}_{model_config['region']}_{model_config['start_year']}_{model_config['end_year']}_{model_config['forecast_range']}_{model_config['lag']}_*_{model_config['method']}.npy"
+
+            # Form the path to the files
+            matching_files = glob.glob(os.path.join(model_arr_dir, fnames_root))
+
+            # Print the matching files
+            print(f"matching files {model_arr_dir}{fnames_root}")
+
+            # If the len of matching files is greater than 1
+            if len(matching_files) > 1:
+                print("More than one matching file found.")
+
+                # Extract the datetimes
+                datetimes = [file.split("_")[7] for file in matching_files]
+
+                # Remove the .npy from the datetimes
+                datetimes = [datetime.split(".")[0] for datetime in datetimes]
+
+                # Convert the datasetimes to datetimes using pandas
+                datetimes = [
+                    pd.to_datetime(datetime, unit="s") for datetime in datetimes
+                ]
+
+                # Find the latest datetime
+                latest_datetime = max(datetimes)
+
+                # Find the index of the latest datetime
+                latest_datetime_index = datetimes.index(latest_datetime)
+
+                # Print that we are using the latest datetime file
+                print(
+                    "Using the latest datetime file:",
+                    matching_files[latest_datetime_index],
+                )
+
+                # Load the file
+                data = np.load(matching_files[latest_datetime_index])
+            else:
+                # Load the file
+                data = np.load(matching_files[0])
+
+            # Print the shape of the data
+            # shape of the data: (51, 664, 72, 144)
+            print(f"shape of the data: {data.shape}")
+
+            # if the model_config["method"] != "NAO-matched"
+            if model_config["method"] != "nao_matched":
+                # print that we are swapping the axes
+                print("Swapping the axes.")
+
+                # Swap the axes
+                data = np.swapaxes(data, 0, 1)
+
+            # If there are multiple ensemble members
+            if data.shape[0] > 1:
+                # Take the ensemble mean
+                data = np.mean(data, axis=0)
+            else:
+                # Take the first element
+                data = data[0]
+
+            # assert that the shapefile is not none
+            assert shp_file is not None, "The shapefile is None."
+
+            # assert that the shapefile directory is not none
+            assert shp_file_dir is not None, "The shapefile directory is None."
+
+            # assert that the shapefile directory exists
+            assert os.path.exists(
+                shp_file_dir
+            ), "The shapefile directory does not exist."
+
+            # assert that the shapefile exists
+            assert os.path.exists(
+                os.path.join(shp_file_dir, shp_file)
+            ), "The shapefile does not exist."
+
+            # Load the shapefile
+            shapefile = gpd.read_file(os.path.join(shp_file_dir, shp_file))
+
+            # Throw away all columns
+            # apart from geoname
+            shapefile = shapefile[["GEONAME", "ISO_SOV1", "geometry"]]
+
+            # Pass the NUTS keys through the filter
+            iso_sov_values = [dicts.iso_mapping[key] for key in NUTS_keys]
+
+            # Constrain the geo dataframe to only include these values
+            shapefile = shapefile[shapefile["ISO_SOV1"].isin(iso_sov_values)]
+
+            # Filter df to only include the rows where GEONAME includes: "Exclusive Economic Zone"
+            shapefile = shapefile[
+                shapefile["GEONAME"].str.contains("Exclusive Economic Zone")
+            ]
+
+            # Remove any rows from EEZ shapefile which contain "(*)" in the GEONAME column
+            # To limit to only Exlusive economic zones
+            shapefile = shapefile[~shapefile["GEONAME"].str.contains(r"\(.*\)")]
+
+            # Print the shape of clim_var_anomaly
+            print("Shape of clim_var_anomaly: ", clim_var_anomaly.shape)
+
+            # Set up the numbers
+            shapefile["numbers"] = range(len(shapefile))
+
+            # set uup the eez mask poly
+            eez_mask_poly = regionmask.from_geopandas(
+                shapefile,
+                names="GEONAME",
+                abbrevs="ISO_SOV1",
+                numbers="numbers",
+            )
+
+            # Subset the data
+            clim_var_anomaly_subset = clim_var_anomaly.isel(time=0)
+
+            # Create the mask for the obs
+            eez_mask_obs = eez_mask_poly.mask(
+                clim_var_anomaly_subset["lon"],
+                clim_var_anomaly_subset["lat"],
+            )
+
+            # Create a mask for the model data
+            eez_mask = eez_mask_poly.mask(
+                np.arange(-180, 180, 2.5), np.arange(-90, 90, 2.5)
+            )
+
+            # Set up the n_flags
+            n_flags = len(eez_mask.attrs["flag_values"])
+
+            # And for the obs
+            n_flags_obs = len(eez_mask_obs.attrs["flag_values"])
+
+            # Create a dataframe for the obs
+            df_ts_obs = pd.DataFrame({"time": clim_var_anomaly.time.values})
+
+            # Set up the valid years
+            if model_config["forecast_range"] == "2-9":
+                valid_years = np.arange(
+                    model_config["start_year"] + 5, model_config["end_year"] + 5 + 1
+                )
+            elif model_config["forecast_range"] == "2-5":
+                raise NotImplementedError(
+                    "The forecast range 2-5 is not yet implemented."
+                )
+            else:
+                raise ValueError("The forecast range is not recognised.")
+
+            # Create a dataframe
+            df_ts = pd.DataFrame({"time": valid_years})
+
+            # Extracts the lats and lons
+            lats = eez_mask.lat.values
+            lons = eez_mask.lon.values
+
+            # And for the nuts mask obs
+            lats_obs = eez_mask_obs.lat.values
+            lons_obs = eez_mask_obs.lon.values
+
+            # Loop over the regions to process the model data
+            for i in tqdm((range(n_flags))):
+                # add a new column to the dataframe
+                df_ts[eez_mask.attrs["flag_meanings"].split(" ")[i]] = np.nan
+
+                # Print the region we are calculating correlations for
+                print(
+                    f"Calculating correlation for region: {eez_mask.attrs['flag_meanings'].split(' ')[i]}"
+                )
+
+                # Extract the mask for the region
+                sel_mask = eez_mask.where(eez_mask == i).values
+
+                # Set up the lon indices
+                id_lon = lons[np.where(~np.all(np.isnan(sel_mask), axis=0))]
+
+                # Set up the lat indices
+                id_lat = lats[np.where(~np.all(np.isnan(sel_mask), axis=1))]
+
+                # If the length of id_lon is 0 and the length of id_lat is 0
+                if len(id_lon) == 0 and len(id_lat) == 0:
+                    print(
+                        f"Region {eez_mask.attrs['flag_meanings'].split(' ')[i]} is empty."
+                    )
+                    print("Continuing to the next region.")
+                    continue
+
+                # # Print the id_lat and id_lon
+                # print("id_lat[0], id_lat[-1]: ", id_lat[0], id_lat[-1])
+
+                # # Print the id_lat and id_lon
+                # print("id_lon[0], id_lon[-1]: ", id_lon[0], id_lon[-1])
+
+                # # print the id_lat and id_lon
+                # print("id_lat: ", id_lat)
+                # print("id_lon: ", id_lon)
+
+                # print("id_lat type: ", type(id_lat))
+                # print("id_lon type: ", type(id_lon))
+
+                # Find the index for the id_lat[0] and id_lat[-1]
+                id_lat0_idx = np.where(lats == id_lat[0])[0][0]
+                id_lat1_idx = np.where(lats == id_lat[-1])[0][0]
+
+                # Find the index for the id_lon[0] and id_lon[-1]
+                id_lon0_idx = np.where(lons == id_lon[0])[0][0]
+                id_lon1_idx = np.where(lons == id_lon[-1])[0][0]
+
+                # Select the region from the data
+                data_region = data[
+                    :, id_lat0_idx : id_lat1_idx + 1, id_lon0_idx : id_lon1_idx + 1
+                ]
+
+                # Create a mask for the region
+                region_mask = sel_mask[
+                    id_lat0_idx : id_lat1_idx + 1, id_lon0_idx : id_lon1_idx + 1
+                ]
+
+                # Create a boolean region mask
+                region_mask_bool = region_mask == i
+
+                # Initialise out_sel with the same shape as data region
+                out_sel = np.zeros([data_region.shape[0]])
+
+                # Loop over the first axis
+                for j in range(data_region.shape[0]):
+                    # Apply the mask
+                    masked_data = data_region[j][region_mask_bool]
+
+                    # if the masked data has two dimensions
+                    if len(masked_data.shape) == 2:
+                        # take the mean over the 0th and 1st axis
+                        masked_data = np.mean(masked_data, axis=(0, 1))
+                    elif len(masked_data.shape) == 1:
+                        # Take the mean over the 0th axis
+                        masked_data = np.mean(masked_data, axis=0)
+                    else:
+                        # Raise an error
+                        raise ValueError("The masked data has more than 2 dimensions.")
+
+                    # Assign the masked data to out_sel
+                    out_sel[j] = masked_data
+
+                # print the shape of out_sel
+                # print(f"out sel shape {out_sel.shape}")
+                # print(f"out set values {out_sel}")
+
+                # Add this to the dataframe
+                df_ts[nuts_mask.attrs["flag_meanings"].split(" ")[i]] = out_sel
+
+            # Loop over the region for the obs
+            for i in tqdm((range(n_flags_obs))):
+                # add a new column to the dataframe
+                df_ts_obs[nuts_mask_obs.attrs["flag_meanings"].split(" ")[i]] = np.nan
+
+                # Print the region we are calculating correlations for
+                print(
+                    f"Calculating correlation for region: {nuts_mask_obs.attrs['flag_meanings'].split(' ')[i]}"
+                )
+
+                # Extract the mask for the region
+                sel_mask = nuts_mask_obs.where(nuts_mask_obs == i).values
+
+                # Set up the lon indices
+                id_lon = lons_obs[np.where(~np.all(np.isnan(sel_mask), axis=0))]
+
+                # Set up the lat indices
+                id_lat = lats_obs[np.where(~np.all(np.isnan(sel_mask), axis=1))]
+
+                # If the length of id_lon is 0 and the length of id_lat is 0
+                if len(id_lon) == 0 and len(id_lat) == 0:
+                    print(
+                        f"Region {nuts_mask_obs.attrs['flag_meanings'].split(' ')[i]} is empty."
+                    )
+                    print("Continuing to the next region.")
+                    continue
+
+                # # Print the id_lat and id_lon
+                # print("id_lat[0], id_lat[-1]: ", id_lat[0], id_lat[-1])
+
+                # # Print the id_lat and id_lon
+                # print("id_lon[0], id_lon[-1]: ", id_lon[0], id_lon[-1])
+
+                # # print the id_lat and id_lon
+                # print("id_lat: ", id_lat)
+                # print("id_lon: ", id_lon)
+
+                # print("id_lat type: ", type(id_lat))
+                # print("id_lon type: ", type(id_lon))
+
+                # Select the region for the anoms
+                out_sel = (
+                    clim_var_anomaly.sel(
+                        lat=slice(id_lat[0], id_lat[-1]),
+                        lon=slice(id_lon[0], id_lon[-1]),
+                    )
+                    .compute()
+                    .where(nuts_mask_obs == i)
+                )
+
+                # Group this into a mean
+                out_sel = out_sel.mean(dim=["lat", "lon"])
+
+                # Add this to the dataframe
+                df_ts_obs[nuts_mask_obs.attrs["flag_meanings"].split(" ")[i]] = out_sel.values
+
+            # Take the central rolling average
+            df_ts_obs = (
+                df_ts_obs.set_index("time")
+                .rolling(window=rolling_window, center=centre)
+                .mean()
+            )
+
+            # Set the index to the year
+            df_ts_obs.index = df_ts_obs.index.year
+
+            # Set up the columns for df_ts_obs
+            df_ts_obs.columns = [
+                f"{col}_{obs_var}_obs" for col in df_ts_obs.columns if col != "time"
+            ]
+
+            # if the obs variable is in ["ssrd", "rsds"]
+            if obs_var in ["ssrd", "rsds"]:
+                # Divide by 86400 to convert from J/m^2 to W m/m^2
+                df_ts_obs = df_ts_obs / 86400
+            else:
+                # Raise an error for other cases
+                raise NotImplementedError(f"Handling for obs_var '{obs_var}' is not implemented yet.")
+
+            # Drop the first rolling window over 2 values
+            df_ts_obs = df_ts_obs.iloc[int(rolling_window / 2) :]
+
+            # Set the index to the time
+            df_ts = df_ts.set_index("time")
+
+            # modify each of the column names to include '_si10'
+            # at the end of the string
+            df_ts.columns = [
+                f"{col}_{obs_var}" for col in df_ts.columns if col != "time"
+            ]
+
+            # try joining the dataframes
+            try:
+                # join hc and model data ts
+                merged_df_ts = df_ts_obs.join(df_ts, how="inner")
+            except Exception as e:
+                print(e)
+
+            # Set the index of df to year
+            df.index = df.index.year
+
+            # join the dataframes
+            # energy var + model data ts
+            merged_df = df.join(df_ts, how="inner")
+
+            # Create a new dataframe for the correlations
+            corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
+
+            # Find the length of the merged_df.columns which don't contain "Si10"
+            n_cols = len(
+                [
+                    col
+                    for col in merged_df.columns
+                    if obs_var not in col and "time" not in col
+                ]
+            )
+
+            # Loop over the columns
+            for i in tqdm(range(n_cols)):
+                # Extract the column
+                col = merged_df.columns[i]
+
+                # If merged_df[f"{col_iso}_{obs_var}"] doesn't exist
+                # Then create this
+                # and fill with NaN values
+                if f"{col}_{obs_var}" not in merged_df.columns:
+                    merged_df[f"{col}_{obs_var}"] = np.nan
+
+                # Check whether the length of the column is 4
+                assert (
+                    len(merged_df[col]) >= 2
+                ), f"The length of the column is less than 2 for {col}"
+
+                # Same check for the other one
+                assert (
+                    len(merged_df[f"{col}_{obs_var}"]) >= 2
+                ), f"The length of the column is less than 2 for {col_iso}_{obs_var}"
+
+                # If merged_df[f"{col_iso}_{obs_var}"] contains NaN values
+                # THEN fill the corr and pval with NaN
+                if merged_df[f"{col}_{obs_var}"].isnull().values.any():
+                    corr = np.nan
+                    pval = np.nan
+
+                    # Append to the dataframe
+                    corr_df_to_append = pd.DataFrame(
+                        {"region": [col], "correlation": [corr], "p-value": [pval]}
+                    )
+
+                    # Append to the dataframe
+                    corr_df = pd.concat([corr_df, corr_df_to_append], ignore_index=True)
+
+                    # continue to the next iteration
+                    continue
+
+                # Calculate corr between wind power (GW) and wind speed
+                corr, pval = pearsonr(merged_df[col], merged_df[f"{col}_{obs_var}"])
+
+                # Append to the dataframe
+                corr_df_to_append = pd.DataFrame(
+                    {"region": [col], "correlation": [corr], "p-value": [pval]}
+                )
+
+                # Append to the dataframe
+                corr_df = pd.concat([corr_df, corr_df_to_append], ignore_index=True)
+
+            # create a new dataframe for the hindcast obs corr
+            model_corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
+
+            # find the len of the merged_df_ts columns which don't contain 'obs'
+            # and 'time'
+            n_cols = len(
+                [
+                    col
+                    for col in merged_df_ts.columns
+                    if "_obs" not in col and "time" not in col
+                ]
+            )
+
+            # Loop over the columns
+            for i in tqdm(range(n_cols)):
+                # Extract the column
+                col = merged_df_ts.columns[i]
+
+                # Check whether the length of the column is greater than 2
+                assert (
+                    len(merged_df_ts[col]) >= 2
+                ), f"The length of the column is less than 2 for {col}"
+
+                # assert that the f"{col}_obs" exists in the columns
+                assert (
+                    f"{col}_obs" in merged_df_ts.columns
+                ), f"{col}_obs does not exist in the columns."
+
+                # If merged_df_ts[col] contains NaN values
+                # THEN fill the corr and pval with NaN
+                if merged_df_ts[col].isnull().values.any():
+                    # Set up the df to be appended
+                    corr_df_to_append = pd.DataFrame(
+                        {"region": [col], "correlation": [np.nan], "p-value": [np.nan]}
+                    )
+
+                    # Append to the dataframe
+                    model_corr_df = pd.concat(
+                        [model_corr_df, corr_df_to_append], ignore_index=True
+                    )
+
+                    # continue to the next iteration
+                    continue
+
+                # Calculate corr between wind power (GW) and wind speed
+                corr, pval = pearsonr(merged_df_ts[col], merged_df_ts[f"{col}_obs"])
+
+                # Append to the dataframe
+                corr_df_to_append = pd.DataFrame(
+                    {"region": [col], "correlation": [corr], "p-value": [pval]}
+                )
+
+                # Append to the dataframe
+                model_corr_df = pd.concat(
+                    [model_corr_df, corr_df_to_append], ignore_index=True
+                )
+
+            # Return the dataframes
+            return merged_df, corr_df, shapefile, merged_df_ts, model_corr_df      
+
         elif use_model_data is False:
             print("Averaging over specified gridbox")
 
@@ -4644,38 +5205,35 @@ def calc_nao_region_corr(
         # Join the dataframes
         merged_df = df_ts.join(nao_df, how="inner")
 
+        # print the head of the merged df
+        print(merged_df.head())
+
+
         # Create a new dataframe for the correlations
         corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
 
         # find the length of merged df columns
-        n_cols = len(col for col in merged_df.columns if predictand_var_name not in col and "time" not in col)
-
-        # print the head of the merged df
-        print(merged_df.head())
+        n_cols = len([col for col in merged_df.columns if "obs_nao" not in col and "time" not in col])
 
         # Loop over the columns in the merged dataframe
         for i in tqdm(range(n_cols)):
             # Extract the column
             col = merged_df.columns[i]
 
-            # if merged_df[f"{col}_{predictand_var_name}"] doesn't exits
-            if f"{col}_{predictand_var_name}" not in merged_df.columns:
-                # Make this and fill with NaN
-                merged_df[f"{col}_{predictand_var_name}"] = np.nan
+            # split the column name by "_"
+            # and extract the first element
+            iso_code = col.split("_")[0]
 
             # assert that the length of the column is greater than 2
             assert len(merged_df[col]) > 2, "The length of the column is less than 2."
 
-            # and for the col_predictand_var_name
-            assert len(merged_df[f"{col}_{predictand_var_name}"]) > 2, "The length of the column is less than 2."
-
             # if merged_df[f"{col}_{predictand_var_name}"] contains nan values
-            if merged_df[f"{col}_{predictand_var_name}"].isnull().values.any():
+            if merged_df[col].isnull().values.any():
                 print(f"Column {col} contains NaN values.")
                 
                 # Set up the row results
                 corr_df_to_append = pd.DataFrame(
-                    {"region": [col], "correlation": [np.nan], "p-value": [np.nan]}
+                    {"region": [iso_code], "correlation": [np.nan], "p-value": [np.nan]}
                 )
 
                 # append to the dataframe
@@ -4685,12 +5243,12 @@ def calc_nao_region_corr(
 
             # Calculate the correlation between NAO and the observed data
             corr, p_val = pearsonr(
-                merged_df["obs_nao"].values, merged_df[f"{col}_{predictand_var_name}"].values
+                merged_df["obs_nao"].values, merged_df[col].values
             )
 
             # Set up the row results
             corr_df_to_append = pd.DataFrame(
-                {"region": [col], "correlation": [corr], "p-value": [p_val]}
+                {"region": [iso_code], "correlation": [corr], "p-value": [p_val]}
             )
 
             # append to the dataframe
@@ -4702,4 +5260,99 @@ def calc_nao_region_corr(
     else:
         AssertionError("The shapefile must be either a NUTS or EEZ shapefile.")
 
+    # set the index to the region column
+    corr_df.set_index("region", inplace=True)
+
+    # if the save_df_dir does not exist
+    if not os.path.exists(save_df_dir):
+        # make the directory
+        os.makedirs(save_df_dir)
+
+    # For the save_path
+    save_path = os.path.join(save_df_dir, save_fname)
+
+    # Save the dataframe
+    corr_df.to_csv(save_path)
+
     return nao_df, merged_df, corr_df
+
+
+# define a function to merge dfs
+def merge_dfs_by_region(
+    dfs_dir: str,
+    filenames: list,
+    prefixes: list,
+    save_df_dir: str = "/home/users/benhutch/energy-met-corr/df/",
+    save_fname: str = "corr_df_combined.csv",
+) -> pd.DataFrame:
+    """
+    Merges multiple dfs by region.
+
+    Args:
+    -----
+
+    dfs_dir: str
+        The directory containing the dfs.
+
+    filenames: list
+        The list of filenames to merge.
+
+    prefixes: list
+        The list of prefixes for the dfs.
+
+    save_df_dir: str
+        The directory to save the dataframe to.
+
+    save_fname: str
+        The filename to save the dataframe to.
+
+    Output:
+    -------
+
+    df: pd.DataFrame
+        The dataframe containing the merged dfs.
+    """
+
+    # assert that the dfs_dir exists
+    assert os.path.exists(dfs_dir), f"The directory {dfs_dir} does not exist."
+
+    # assert that the files exist
+    for file in filenames:
+        assert os.path.exists(os.path.join(dfs_dir, file)), f"The file {file} does not exist."
+
+    # assert that the lengths of filenames and prefixes are the same
+    assert len(filenames) == len(prefixes), "The lengths of filenames and prefixes must be the same."
+
+    # Load the dataframes
+    for i, file in tqdm(enumerate(filenames)):
+        # Load the dataframe
+        df = pd.read_csv(os.path.join(dfs_dir, file))
+
+        # Set the index to the region column
+        df.set_index("region", inplace=True)
+
+        # Rename the columns
+        df = df.add_prefix(f"{prefixes[i]}_")
+
+        # if i is 0
+        if i == 0:
+            # Set the first dataframe as the base
+            base_df = df
+
+        else:
+            # Join the dataframes
+            base_df = base_df.join(df, how="left")
+
+    # if the save_df_dir does not exist
+    if not os.path.exists(save_df_dir):
+        # make the directory
+        os.makedirs(save_df_dir)
+
+    # For the save_path
+    save_path = os.path.join(save_df_dir, save_fname)
+
+    # Save the dataframe
+    base_df.to_csv(save_path)
+
+    return base_df
+
