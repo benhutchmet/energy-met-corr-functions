@@ -3167,7 +3167,7 @@ def correlate_nao_uread(
 
                     # Append to the dataframe
                     model_corr_df_to_append = pd.DataFrame(
-                        {"region": [col], "correlation": [corr], "p-value": [pval]}
+                        {"region": [col_iso], "correlation": [corr], "p-value": [pval]}
                     )
 
                     # Append to the dataframe
@@ -3183,7 +3183,7 @@ def correlate_nao_uread(
 
                 # Append to the dataframe
                 model_corr_df_to_append = pd.DataFrame(
-                    {"region": [col], "correlation": [corr], "p-value": [pval]}
+                    {"region": [col_iso], "correlation": [corr], "p-value": [pval]}
                 )
 
                 # Append to the dataframe
@@ -3653,7 +3653,7 @@ def correlate_nao_uread(
                 [
                     col
                     for col in merged_df_ts.columns
-                    if "_obs" not in col and "time" not in col
+                    if "_obs" in col and "time" not in col
                 ]
             )
 
@@ -3668,22 +3668,20 @@ def correlate_nao_uread(
                 # Extract the column
                 col = merged_df_ts.columns[i]
 
+                # extract the first two letters
+                col_iso = col[:2]
+
                 # Check whether the length of the column is greater than 2
                 assert (
                     len(merged_df_ts[col]) >= 2
                 ), f"The length of the column is less than 2 for {col}"
-
-                # assert that the f"{col}_obs" exists in the columns
-                assert (
-                    f"{col}_obs" in merged_df_ts.columns
-                ), f"{col}_obs does not exist in the columns."
 
                 # If merged_df_ts[col] contains NaN values
                 # THEN fill the corr and pval with NaN
                 if merged_df_ts[col].isnull().values.any():
                     # Set up the df to be appended
                     corr_df_to_append = pd.DataFrame(
-                        {"region": [col], "correlation": [np.nan], "p-value": [np.nan]}
+                        {"region": [col_iso], "correlation": [np.nan], "p-value": [np.nan]}
                     )
 
                     # Append to the dataframe
@@ -3695,11 +3693,11 @@ def correlate_nao_uread(
                     continue
 
                 # Calculate corr between wind power (GW) and wind speed
-                corr, pval = pearsonr(merged_df_ts[col], merged_df_ts[f"{col}_obs"])
+                corr, pval = pearsonr(merged_df_ts[col], merged_df_ts[f"{col_iso}_{obs_var}"])
 
                 # Append to the dataframe
                 corr_df_to_append = pd.DataFrame(
-                    {"region": [col], "correlation": [corr], "p-value": [pval]}
+                    {"region": [col_iso], "correlation": [corr], "p-value": [pval]}
                 )
 
                 # Append to the dataframe
