@@ -3004,9 +3004,6 @@ def correlate_nao_uread(
             if obs_var in ["ssrd", "rsds"]:
                 # Divide by 86400 to convert from J/m^2 to W m/m^2
                 df_ts_obs = df_ts_obs / 86400
-            else:
-                # Raise an error for other cases
-                raise NotImplementedError(f"Handling for obs_var '{obs_var}' is not implemented yet.")
 
             # Drop the first rolling window over 2 values
             df_ts_obs = df_ts_obs.iloc[int(rolling_window / 2) :]
@@ -3068,6 +3065,11 @@ def correlate_nao_uread(
                 ]
             )
 
+            # print the ncols
+            print("Number of columns: ", n_cols)
+
+            # print the head of merged_df
+            print("Head of merged_df: ", merged_df.head())
 
             # Loop over the columns
             for i in tqdm(range(n_cols)):
@@ -3125,35 +3127,41 @@ def correlate_nao_uread(
             n_cols = len(
                 [
                     col
-                    for col in merged_df.columns
-                    if "_obs" not in col and "time" not in col
+                    for col in merged_df_ts.columns
+                    if "_obs" in col and "time" not in col
                 ]
             )
+
+            # print the n_cols
+            print("n_cols: ", n_cols)
 
             # Loop over the columns
             for i in tqdm(range(n_cols)):
                 # Extract the column
-                col = merged_df.columns[i]
+                col = merged_df_ts.columns[i]
+
+                # extract the first two letters
+                col_iso = col[:2]
 
                 # If merged_df[f"{col_iso}_{obs_var}"] doesn't exist
                 # Then create this
                 # and fill with NaN values
-                if f"{col}_{obs_var}" not in merged_df.columns:
-                    merged_df[f"{col}_{obs_var}"] = np.nan
+                if f"{col_iso}_{obs_var}" not in merged_df_ts.columns:
+                    merged_df_ts[f"{col_iso}_{obs_var}"] = np.nan
 
                 # Check whether the length of the column is 4
                 assert (
-                    len(merged_df[col]) >= 2
+                    len(merged_df_ts[col]) >= 2
                 ), f"The length of the column is less than 2 for {col}"
 
                 # Same check for the other one
                 assert (
-                    len(merged_df[f"{col}_{obs_var}"]) >= 2
+                    len(merged_df_ts[f"{col_iso}_{obs_var}"]) >= 2
                 ), f"The length of the column is less than 2 for {col_iso}_{obs_var}"
 
                 # If merged_df[f"{col_iso}_{obs_var}"] contains NaN values
                 # THEN fill the corr and pval with NaN
-                if merged_df[f"{col}_{obs_var}"].isnull().values.any():
+                if merged_df_ts[col].isnull().values.any():
                     corr = np.nan
                     pval = np.nan
 
@@ -3171,7 +3179,7 @@ def correlate_nao_uread(
                     continue
 
                 # Calculate corr between wind power (GW) and wind speed
-                corr, pval = pearsonr(merged_df[col], merged_df[f"{col}_{obs_var}"])
+                corr, pval = pearsonr(merged_df_ts[col], merged_df_ts[f"{col_iso}_{obs_var}"])
 
                 # Append to the dataframe
                 model_corr_df_to_append = pd.DataFrame(
@@ -3539,9 +3547,6 @@ def correlate_nao_uread(
             if obs_var in ["ssrd", "rsds"]:
                 # Divide by 86400 to convert from J/m^2 to W m/m^2
                 df_ts_obs = df_ts_obs / 86400
-            else:
-                # Raise an error for other cases
-                raise NotImplementedError(f"Handling for obs_var '{obs_var}' is not implemented yet.")
 
             # Drop the first rolling window over 2 values
             df_ts_obs = df_ts_obs.iloc[int(rolling_window / 2) :]
@@ -3581,16 +3586,25 @@ def correlate_nao_uread(
                 ]
             )
 
+            # print the number of colums
+            print(f"Number of columns: {n_cols}")
+
+            # print the head of merged_df
+            print("Head of merged_df: ", merged_df.head())
+
             # Loop over the columns
             for i in tqdm(range(n_cols)):
                 # Extract the column
                 col = merged_df.columns[i]
 
+                # extract the first two letters of the column
+                col_iso = col[:2]
+
                 # If merged_df[f"{col_iso}_{obs_var}"] doesn't exist
                 # Then create this
                 # and fill with NaN values
-                if f"{col}_{obs_var}" not in merged_df.columns:
-                    merged_df[f"{col}_{obs_var}"] = np.nan
+                if f"{col_iso}_{obs_var}" not in merged_df.columns:
+                    merged_df[f"{col_iso}_{obs_var}"] = np.nan
 
                 # Check whether the length of the column is 4
                 assert (
@@ -3599,18 +3613,18 @@ def correlate_nao_uread(
 
                 # Same check for the other one
                 assert (
-                    len(merged_df[f"{col}_{obs_var}"]) >= 2
+                    len(merged_df[f"{col_iso}_{obs_var}"]) >= 2
                 ), f"The length of the column is less than 2 for {col_iso}_{obs_var}"
 
                 # If merged_df[f"{col_iso}_{obs_var}"] contains NaN values
                 # THEN fill the corr and pval with NaN
-                if merged_df[f"{col}_{obs_var}"].isnull().values.any():
+                if merged_df[f"{col_iso}_{obs_var}"].isnull().values.any():
                     corr = np.nan
                     pval = np.nan
 
                     # Append to the dataframe
                     corr_df_to_append = pd.DataFrame(
-                        {"region": [col], "correlation": [corr], "p-value": [pval]}
+                        {"region": [col_iso], "correlation": [corr], "p-value": [pval]}
                     )
 
                     # Append to the dataframe
@@ -3620,11 +3634,11 @@ def correlate_nao_uread(
                     continue
 
                 # Calculate corr between wind power (GW) and wind speed
-                corr, pval = pearsonr(merged_df[col], merged_df[f"{col}_{obs_var}"])
+                corr, pval = pearsonr(merged_df[col], merged_df[f"{col_iso}_{obs_var}"])
 
                 # Append to the dataframe
                 corr_df_to_append = pd.DataFrame(
-                    {"region": [col], "correlation": [corr], "p-value": [pval]}
+                    {"region": [col_iso], "correlation": [corr], "p-value": [pval]}
                 )
 
                 # Append to the dataframe
@@ -3642,6 +3656,12 @@ def correlate_nao_uread(
                     if "_obs" not in col and "time" not in col
                 ]
             )
+
+            # print the number of columns
+            print(f"Number of columns: {n_cols}")
+
+            # print the head of merged_df_ts
+            print("Head of merged_df_ts: ", merged_df_ts.head())
 
             # Loop over the columns
             for i in tqdm(range(n_cols)):
