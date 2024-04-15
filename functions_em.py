@@ -4628,7 +4628,73 @@ def calc_nao_region_corr(
             # print(f"out sel values after mean {out_sel.values}")
 
             # Add this to the dataframe
-            df_ts[nuts_mask.attrs["flag_meanings"].split(" ")[i]] = out_sel.values        
+            df_ts[nuts_mask.attrs["flag_meanings"].split(" ")[i]] = out_sel.values
+
+        # Take the central rolling average
+        df_ts = df_ts.set_index("time").rolling(window=rolling_window,
+                                                center=True).mean()
+        
+        # Modify each of the column names to include "_si10"
+        # using a list comprehension
+        df_ts.columns = [f"{col}_{predictand_var_name}" for col in df_ts.columns if col != "time"]
+
+        # Drop the first rolling window/2 values
+        df_ts = df_ts.iloc[int(rolling_window / 2):]
+
+        # Join the dataframes
+        merged_df = df_ts.join(nao_df, how="inner")
+
+        # Create a new dataframe for the correlations
+        corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
+
+        # find the length of merged df columns
+        n_cols = len(col for col in merged_df.columns if predictand_var_name not in col and "time" not in col)
+
+        # print the head of the merged df
+        print(merged_df.head())
+
+        # Loop over the columns in the merged dataframe
+        for i in tqdm(range(n_cols)):
+            # Extract the column
+            col = merged_df.columns[i]
+
+            # if merged_df[f"{col}_{predictand_var_name}"] doesn't exits
+            if f"{col}_{predictand_var_name}" not in merged_df.columns:
+                # Make this and fill with NaN
+                merged_df[f"{col}_{predictand_var_name}"] = np.nan
+
+            # assert that the length of the column is greater than 2
+            assert len(merged_df[col]) > 2, "The length of the column is less than 2."
+
+            # and for the col_predictand_var_name
+            assert len(merged_df[f"{col}_{predictand_var_name}"]) > 2, "The length of the column is less than 2."
+
+            # if merged_df[f"{col}_{predictand_var_name}"] contains nan values
+            if merged_df[f"{col}_{predictand_var_name}"].isnull().values.any():
+                print(f"Column {col} contains NaN values.")
+                
+                # Set up the row results
+                corr_df_to_append = pd.DataFrame(
+                    {"region": [col], "correlation": [np.nan], "p-value": [np.nan]}
+                )
+
+                # append to the dataframe
+                corr_df = pd.concat([corr_df, corr_df_to_append], ignore_index=True)
+
+                continue
+
+            # Calculate the correlation between NAO and the observed data
+            corr, p_val = pearsonr(
+                merged_df["obs_nao"].values, merged_df[f"{col}_{predictand_var_name}"].values
+            )
+
+            # Set up the row results
+            corr_df_to_append = pd.DataFrame(
+                {"region": [col], "correlation": [corr], "p-value": [p_val]}
+            )
+
+            # append to the dataframe
+            corr_df = pd.concat([corr_df, corr_df_to_append], ignore_index=True)
 
     elif "eez" in shp_fname:
         print("The shapefile is an EEZ shapefile.")
@@ -4636,3 +4702,4 @@ def calc_nao_region_corr(
     else:
         AssertionError("The shapefile must be either a NUTS or EEZ shapefile.")
 
+    return nao_df, merged_df, corr_df
