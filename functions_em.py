@@ -4338,6 +4338,8 @@ def calc_nao_region_corr(
     shp_fpath: str,
     predictand_var_name: str,
     predictand_var_data_path: str,
+    start_year: str = "1960",
+    end_year: str = "2023",
     forecast_range: str = "2-9",
     months: list = [10, 11, 12, 1, 2, 3],
     annual_offset: int = 3,
@@ -4367,6 +4369,12 @@ def calc_nao_region_corr(
 
     predictand_var_data_path: str
         The path to the predictand variable data.
+
+    start_year: str
+        The start year for the observed data.
+
+    end_year: str
+        The end year for the observed data.
 
     forecast_range: str
         The forecast range for the predictand variable.
@@ -4407,4 +4415,224 @@ def calc_nao_region_corr(
         The dataframe containing the correlations.
     """
 
-    
+    # assert that the shapefile exists
+    assert os.path.exists(os.path.join(shp_fpath, shp_fname)), f"The shapefile {shp_fname} does not exist."
+
+    # Load in the ERA5 data for psl for the NAO
+    psl_field = xr.open_mfdataset(
+        nao_obs_var_data_path,
+        combine="by_coords",
+        parallel=True,
+        chunks={"time": "auto", "latitude": "auto", "longitude": "auto"},
+    )[nao_obs_var]
+
+    # If expver is a variable in the dataset
+    if "expver" in psl_field.coords:
+        # Combine the first two expver variables
+        psl_field = psl_field.sel(expver=1).combine_first(psl_field.sel(expver=5))
+
+    # Load in the other observed data to validate against
+    clim_var = xr.open_mfdataset(
+        predictand_var_data_path,
+        combine="by_coords",
+        parallel=True,
+        chunks={"time": "auto", "latitude": "auto", "longitude": "auto"},
+    )[predictand_var_name]
+
+    # If expver is a variable in the dataset
+    if "expver" in clim_var.coords:
+        # Combine the first two expver variables
+        clim_var = clim_var.sel(expver=1).combine_first(clim_var.sel(expver=5))
+
+    # If level is not zero
+    if predictand_var_level != 0:
+        # Select the level
+        clim_var = clim_var.sel(level=predictand_var_level)
+
+    # constrain NAO obs to ONDJFM
+    psl_field = psl_field.sel(time=psl_field.time.dt.month.isin(months))
+
+    # Constrain obs to ONDJFM
+    clim_var = clim_var.sel(time=clim_var.time.dt.month.isin(months))
+
+    # shift psl back by 3 months
+    psl_field_shifted = psl_field.shift(time=-annual_offset)
+
+    # shift clim var back by 3 months
+    clim_var_shifted = clim_var.shift(time=-annual_offset)
+
+    # Take annual means
+    psl_field_annual = psl_field_shifted.resample(time="Y").mean()
+
+    # Take annual means
+    clim_var_annual = clim_var_shifted.resample(time="Y").mean()
+
+    # Slice to specific years
+    psl_field_annual = psl_field_annual.sel(time=slice(start_year, end_year))
+
+    # Slice to specific years
+    clim_var_annual = clim_var_annual.sel(time=slice(start_year, end_year))
+
+    # Remove the climatology
+    psl_field_anomaly = psl_field_annual - psl_field_annual.mean(dim="time")
+
+    # Remove the climatology
+    clim_var_anomaly = clim_var_annual - clim_var_annual.mean(dim="time")
+
+    # Print that we we are calculating the observed NAO
+    print("Calculating the observed NAO.")
+
+    # Extract the lat and lons of iceland
+    lat1_n, lat2_n = nao_n_grid["lat1"], nao_n_grid["lat2"]
+    lon1_n, lon2_n = nao_n_grid["lon1"], nao_n_grid["lon2"]
+
+    # Extract the lat and lons of the azores
+    lat1_s, lat2_s = nao_s_grid["lat1"], nao_s_grid["lat2"]
+    lon1_s, lon2_s = nao_s_grid["lon1"], nao_s_grid["lon2"]
+
+    # Calculate the msl mean for the icelandic region
+    psl_field_mean_n = psl_field_anomaly.sel(
+        lat=slice(lat1_n, lat2_n), lon=slice(lon1_n, lon2_n)
+    ).mean(dim=["lat", "lon"])
+
+    # Calculate the msl mean for the azores region
+    psl_field_mean_s = psl_field_anomaly.sel(
+        lat=slice(lat1_s, lat2_s), lon=slice(lon1_s, lon2_s)
+    ).mean(dim=["lat", "lon"])
+
+    # Calculate the NAO indes (azores (s) - iceland (n))
+    nao = psl_field_mean_s - psl_field_mean_n
+
+    # Extract the time values
+    time_values = nao.time.values
+
+    # Extract the values
+    nao_values = nao.values
+
+    # Create a dataframe for this data
+    nao_df = pd.DataFrame({"time": time_values, "obs_nao": nao_values})
+
+    # Calculate the rolling window
+    ff_year = int(forecast_range.split("-")[1])
+    lf_year = int(forecast_range.split("-")[0])
+
+    # Calculate the rolling window
+    rolling_window = (ff_year - lf_year) + 1  # e.g. (9-2) + 1 = 8
+
+    # Take the central rolling average
+    nao_df = nao_df.set_index("time").rolling(window=rolling_window,
+                                              center=True).mean()
+
+    # drop the NaN values
+    nao_df = nao_df.dropna()
+
+    # if predictand var contains NUTS
+    if "NUTS" in shp_fname:
+        print("The shapefile is a NUTS shapefile.")
+
+        # Load the shapefile
+        shapefile = gpd.read_file(os.path.join(shp_fpath, shp_fname))
+
+        # Restrict to level code 0
+        shapefile = shapefile[shapefile.LEVL_CODE == 0]
+
+        # Extract the second element of the tuple
+        countries_codes = list(dicts.countries_nuts_id.values())
+
+        # Limit the gpd to the countries in the dictionary
+        shapefile = shapefile[shapefile.NUTS_ID.isin(countries_codes)]
+
+        # Keep only the NUTS_ID, NUTS_NAME, and geometry columns
+        shapefile = shapefile[["NUTS_ID", "NUTS_NAME", "geometry"]]
+
+        # Set up the numbers for the mask
+        shapefile["numbers"] = range(len(shapefile))
+
+        # Form the mask
+        nuts_mask_poly = regionmask.from_geopandas(
+            shapefile,
+            names="NUTS_NAME",
+            abbrevs="NUTS_ID",
+            numbers="numbers", 
+        )
+
+        # Subset the clim var data
+        clim_var_anomaly_subset = clim_var_anomaly.isel(time=0)
+
+        # Extract the lat and lon values
+        nuts_mask = nuts_mask_poly.mask(clim_var_anomaly_subset["lon"],
+                                        clim_var_anomaly_subset["lat"])
+        
+        # create a data frame for the time series of observed data in each rgeion
+        df_ts = pd.DataFrame({"time": clim_var_anomaly.time.values})
+
+        # Extract the lats and lons for the mask
+        lats = nuts_mask.lat.values
+        lons = nuts_mask.lon.values
+
+        # Set up the flag values
+        n_flags = len(nuts_mask.attrs["flag_values"])
+
+        # Loop over the flag values
+        # Loop over the regions
+        for i in tqdm((range(n_flags))):
+            # Add a new column to the dataframe
+            df_ts[nuts_mask.attrs["flag_meanings"].split(" ")[i]] = np.nan
+
+            # Print the region
+            print(
+                f"Calculating correlation for region: {nuts_mask.attrs['flag_meanings'].split(' ')[i]}"
+            )
+
+            # Extract the mask for the region
+            sel_mask = nuts_mask.where(nuts_mask == i).values
+
+            # Set up the lon indices
+            id_lon = lons[np.where(~np.all(np.isnan(sel_mask), axis=0))]
+
+            # Set up the lat indices
+            id_lat = lats[np.where(~np.all(np.isnan(sel_mask), axis=1))]
+
+            # If the length of id_lon is 0 and the length of id_lat is 0
+            if len(id_lon) == 0 and len(id_lat) == 0:
+                print(
+                    f"Region {nuts_mask.attrs['flag_meanings'].split(' ')[i]} is empty."
+                )
+                print("Continuing to the next region.")
+                continue
+
+            # Print the id_lat and id_lon
+            print("id_lat[0], id_lat[-1]: ", id_lat[0], id_lat[-1])
+
+            # Print the id_lat and id_lon
+            print("id_lon[0], id_lon[-1]: ", id_lon[0], id_lon[-1])
+
+            # Select the region from the anoms
+            out_sel = (
+                clim_var_anomaly.sel(
+                    lat=slice(id_lat[0], id_lat[-1]),
+                    lon=slice(id_lon[0], id_lon[-1]),
+                )
+                .compute()
+                .where(nuts_mask == i)
+            )
+
+            # # print the values of out_sel
+            # print(f"out sel values {out_sel.values}")
+
+            # Group this into a mean
+            out_sel = out_sel.mean(dim=["lat", "lon"])
+
+            # # Print the values of out sel
+            # # print the values of out_sel
+            # print(f"out sel values after mean {out_sel.values}")
+
+            # Add this to the dataframe
+            df_ts[nuts_mask.attrs["flag_meanings"].split(" ")[i]] = out_sel.values        
+
+    elif "eez" in shp_fname:
+        print("The shapefile is an EEZ shapefile.")
+
+    else:
+        AssertionError("The shapefile must be either a NUTS or EEZ shapefile.")
+
