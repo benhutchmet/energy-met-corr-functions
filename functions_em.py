@@ -4166,6 +4166,7 @@ def aggregate_obs_correlations(
     delta_p_s_grid: dict = dicts.uk_s_box_corrected,
     save_df_dir: str = "/home/users/benhutch/energy-met-corr/df/",
     save_fname: str = "corr_df_combined.csv",
+    time_unit: str = "h",
 ) -> pd.DataFrame:
     """
     Function which aggregates the correlations for multiple observed predictors using the correlate_nao_uread function and pandas.
@@ -4213,6 +4214,12 @@ def aggregate_obs_correlations(
     save_df_dir: str
         The directory to save the dataframe to.
         
+    save_fname: str
+        The filename to save the dataframe to.
+
+    time_unit: str
+        The time unit for the time axis.
+
     Output:
 
     df: pd.DataFrame
@@ -4231,6 +4238,7 @@ def aggregate_obs_correlations(
     # Calculate the correlations for the NAO
     _, corr_df_nao = correlate_nao_uread(
         filename=uread_fname,
+        time_unit=time_unit,
     )
 
     # append _nao to the correlation and p-value columns
@@ -4240,11 +4248,12 @@ def aggregate_obs_correlations(
     )
 
     # set the index to the region column
-    corr_df_nao = corr_df_nao.set_index("region", inplace=True)
+    corr_df_nao.set_index("region", inplace=True)
 
     # Calculate the correlations for the Delta P
     _, corr_df_delta_p = correlate_nao_uread(
         filename=uread_fname,
+        time_unit=time_unit,
         nao_n_grid=delta_p_n_grid,
         nao_s_grid=delta_p_s_grid,
     )
@@ -4256,7 +4265,7 @@ def aggregate_obs_correlations(
     )
 
     # set the index to the region column
-    corr_df_delta_p = corr_df_delta_p.set_index("region", inplace=True)
+    corr_df_delta_p.set_index("region", inplace=True)
 
     # Join the dataframes
     corr_df_combined = corr_df_nao.join(corr_df_delta_p, how="inner")
@@ -4274,6 +4283,7 @@ def aggregate_obs_correlations(
                 filename=uread_fname,
                 shp_file=shp_fname,
                 shp_file_dir=shp_fpath,
+                time_unit=time_unit,
                 obs_var=var,
                 obs_var_data_path=path,
                 level=level,
@@ -4290,6 +4300,7 @@ def aggregate_obs_correlations(
                 filename=uread_fname,
                 shp_file=shp_fname,
                 shp_file_dir=shp_fpath,
+                time_unit=time_unit,
                 obs_var=var,
                 obs_var_data_path=path,
             )
@@ -4300,8 +4311,16 @@ def aggregate_obs_correlations(
                 columns={"correlation": f"correlation_{var}", "p-value": f"p-value_{var}"}
             )
 
+        # Set the index as the region column
+        corr_df.set_index("region", inplace=True)
+
         # join the dataframes
         corr_df_combined = corr_df_combined.join(corr_df, how="inner")
+
+    # if the save_df_dir does not exist
+    if not os.path.exists(save_df_dir):
+        # make the directory
+        os.makedirs(save_df_dir)
 
     # For the save_path
     save_path = os.path.join(save_df_dir, save_fname)
@@ -4310,3 +4329,82 @@ def aggregate_obs_correlations(
     corr_df_combined.to_csv(save_path)
 
     return corr_df_combined
+
+# Write a function which calculations the correlations 
+# between the NAO and observed ERA5 data
+# averaged down to NUTS0 level
+def calc_nao_region_corr(
+    shp_fname: str,
+    shp_fpath: str,
+    predictand_var_name: str,
+    predictand_var_data_path: str,
+    forecast_range: str = "2-9",
+    months: list = [10, 11, 12, 1, 2, 3],
+    annual_offset: int = 3,
+    centre: bool = True,
+    nao_obs_var: str = "msl",
+    nao_obs_var_data_path: str = dicts.regrid_file,
+    nao_n_grid: dict = dicts.iceland_grid_corrected,
+    nao_s_grid: dict = dicts.azores_grid_corrected,
+    save_df_dir: str = "/home/users/benhutch/energy-met-corr/df/",
+    save_fname: str = "corr_df_nuts0.csv",
+    predictand_var_level: int = 0,
+) -> pd.DataFrame:
+    """
+    Function which calculates the correlations between the NAO and 
+    observed ERA5 data averaged down to NUTS0 level.
+    
+    Args:
+
+    shp_fname: str
+        The filename for the shapefile.
+
+    shp_fpath: str
+        The filepath for the shapefile.
+
+    predictand_var_name: str
+        The name of the predictand variable.
+
+    predictand_var_data_path: str
+        The path to the predictand variable data.
+
+    forecast_range: str
+        The forecast range for the predictand variable.
+
+    months: list
+        The months to use for the NAO index.
+
+    annual_offset: int
+        The annual offset to use for the NAO index.
+
+    centre: bool
+        Whether to use the centre of the NAO gridboxes.
+
+    nao_obs_var: str
+        The observed variable to use for calculating the NAO index.
+
+    nao_obs_var_data_path: str
+        The path to the observed variable data.
+
+    nao_n_grid: dict
+        The dictionary containing the gridbox information for the NAO North.
+
+    nao_s_grid: dict
+        The dictionary containing the gridbox information for the NAO South.
+
+    save_df_dir: str
+        The directory to save the dataframe to.
+
+    save_fname: str
+        The filename to save the dataframe to.
+
+    predictand_var_level: int
+        The level of the predictand variable.
+
+    Output:
+
+    df: pd.DataFrame
+        The dataframe containing the correlations.
+    """
+
+    
