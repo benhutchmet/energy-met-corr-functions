@@ -2657,7 +2657,7 @@ def correlate_nao_uread(
             ), "One or more required keys are missing from model_config"
 
             # Form the root of the filename
-            fnames_root = f"{model_config['variable']}_{model_config['season']}_{model_config['region']}_{model_config['start_year']}_{model_config['end_year']}_{model_config['forecast_range']}_{model_config['lag']}_*_{model_config['method']}.npy"
+            fnames_root = f"{model_config['variable']}_{model_config['season']}_{model_config['region']}_{model_config['start_year']}_{model_config['end_year']}_{model_config['forecast_range']}_{model_config['lag']}_*_{model_config['method']}*.npy"
 
             # Form the path to the files
             matching_files = glob.glob(f"{model_arr_dir}{fnames_root}")
@@ -2705,8 +2705,9 @@ def correlate_nao_uread(
             # shape of the data: (51, 664, 72, 144)
             print(f"shape of the data: {data.shape}")
 
-            # Replace the 1th axis with the 0th axis and vice versa
-            data = np.swapaxes(data, 0, 1)
+            if model_config["method"] != "nao_matched":
+                # Replace the 1th axis with the 0th axis and vice versa
+                data = np.swapaxes(data, 0, 1)
 
             # If there are multiple ensemble members
             # then take the ensemble mean
@@ -2784,9 +2785,13 @@ def correlate_nao_uread(
             n_flags_obs = len(nuts_mask_obs.attrs["flag_values"])
 
             # Set up the valid years
-            if model_config["forecast_range"] == "2-9":
+            if model_config["forecast_range"] == "2-9" and model_config["method"] != "nao_matched":
                 valid_years = np.arange(
                     model_config["start_year"] + 5, model_config["end_year"] + 5 + 1
+                )
+            elif model_config["forecast_range"] == "2-9" and model_config["method"] == "nao_matched":
+                valid_years = np.arange(
+                    model_config["start_year"] + 3 + 5, model_config["end_year"] + 5 + 1
                 )
             elif model_config["forecast_range"] == "2-5":
                 raise NotImplementedError(
@@ -3206,7 +3211,7 @@ def correlate_nao_uread(
             ), "One or more required keys are missing from model_config"
 
             # Form the root of the filename
-            fnames_root = f"{model_config['variable']}_{model_config['season']}_{model_config['region']}_{model_config['start_year']}_{model_config['end_year']}_{model_config['forecast_range']}_{model_config['lag']}_*_{model_config['method']}.npy"
+            fnames_root = f"{model_config['variable']}_{model_config['season']}_{model_config['region']}_{model_config['start_year']}_{model_config['end_year']}_{model_config['forecast_range']}_{model_config['lag']}_*_{model_config['method']}*.npy"
 
             # Form the path to the files
             matching_files = glob.glob(os.path.join(model_arr_dir, fnames_root))
@@ -3343,9 +3348,13 @@ def correlate_nao_uread(
             df_ts_obs = pd.DataFrame({"time": clim_var_anomaly.time.values})
 
             # Set up the valid years
-            if model_config["forecast_range"] == "2-9":
+            if model_config["forecast_range"] == "2-9" and model_config["method"] != "nao_matched":
                 valid_years = np.arange(
                     model_config["start_year"] + 5, model_config["end_year"] + 5 + 1
+                )
+            elif model_config["forecast_range"] == "2-9" and model_config["method"] == "nao_matched":
+                valid_years = np.arange(
+                    model_config["start_year"] + 3 + 5, model_config["end_year"] + 5 + 1
                 )
             elif model_config["forecast_range"] == "2-5":
                 raise NotImplementedError(
