@@ -26,6 +26,7 @@ from scipy import signal
 from datetime import datetime
 import geopandas as gpd
 import regionmask
+from typing import List
 
 sys.path.append("/home/users/benhutch/energy-met-corr/")
 # Import local modules
@@ -507,11 +508,19 @@ def calc_nao_spatial_corr(
     # Set the valid years
     stats_dict["valid_years"] = years_nao
 
-    # extract tyhe lats and lons
-    lats = corr_var_anom.lat.values
+    # if dims includes lat and lon
+    if "lat" in corr_var_anom.dims and "lon" in corr_var_anom.dims:
+        # extract tyhe lats and lons
+        lats = corr_var_anom.lat.values
 
-    # extract the lons
-    lons = corr_var_anom.lon.values
+        # extract the lons
+        lons = corr_var_anom.lon.values
+    else:
+        # extract the lats and lons
+        lats = corr_var_anom.latitude.values
+
+        # extract the lons
+        lons = corr_var_anom.longitude.values
 
     # Store the lats and lons in the dictionary
     stats_dict["lats"] = lats
@@ -767,19 +776,15 @@ def plot_corr(
 
 # PLot corr subplots function
 def plot_corr_subplots(
-    corr_array_1: np.ndarray,
-    pval_array_1: np.ndarray,
-    corr_array_2: np.ndarray,
-    pval_array_2: np.ndarray,
+    corr_arrays: List[np.ndarray],
+    pval_arrays: List[np.ndarray],
     lats: np.ndarray,
     lons: np.ndarray,
-    variable_1: str,
-    variable_2: str,
+    variables: List[str],
     sig_threshold: float = 0.05,
     plot_gridbox: list = None,
     nao: np.ndarray = None,
-    corr_var_ts_1: np.ndarray = None,
-    corr_var_ts_2: np.ndarray = None,
+    corr_var_ts: List[np.ndarray] = [None],
     lat_bounds: list = [30, 80],
     lon_bounds: list = [-60, 40],
     figsize_x_px: int = 90,
@@ -797,17 +802,11 @@ def plot_corr_subplots(
     Args:
     -----
 
-    corr_array_1: np.ndarray
-        The array containing the correlation values for the first variable.
+    corr_arrays: List[np.ndarray]
+        The list of arrays containing the correlation values for the variables.
 
-    pval_array_1: np.ndarray
-        The array containing the p-values for the first variable.
-
-    corr_array_2: np.ndarray
-        The array containing the correlation values for the second variable.
-
-    pval_array_2: np.ndarray
-        The array containing the p-values for the second variable.
+    pval_arrays: List[np.ndarray]
+        The list of arrays containing the p-values for the variables.
 
     lats: np.ndarray
         The array containing the latitudes.
@@ -815,11 +814,8 @@ def plot_corr_subplots(
     lons: np.ndarray
         The array containing the longitudes.
 
-    variable_1: str
-        The variable to use for the plot title.
-
-    variable_2: str
-        The variable to use for the plot title.
+    variables: List[str]
+        The list of variables to use for the plot titles.
 
     sig_threshold: float
         The significance threshold for the correlation.
@@ -830,11 +826,8 @@ def plot_corr_subplots(
     nao: np.ndarray
         The array containing the NAO index values.
 
-    corr_var_ts_1: np.ndarray
-        The array containing the variable to correlate values for the first variable.
-
-    corr_var_ts_2: np.ndarray
-        The array containing the variable to correlate values for the second variable.
+    corr_var_ts: List[np.ndarray]
+        The list of arrays containing the variable to correlate values for the variables.
 
     lat_bounds: list
         The bounds for the latitude.
@@ -889,9 +882,6 @@ def plot_corr_subplots(
     # Print total size
     print("Total size: ", (figsize_x_px * px) * (figsize_y_px * px))
 
-    # # assert that (figsize_x_px * px) * (figsize_y_px * px) <= 1800
-    # assert (figsize_x_px * px) * (figsize_y_px * px) >= 1800, "The figure size is too large."
-
     # Calculate the figure size in inches
     figsize_x_in = figsize_x_px * px
 
@@ -899,10 +889,12 @@ def plot_corr_subplots(
     figsize_y_in = figsize_y_px * px
 
     # Set up the wspace
+    # set the nrows depending on the len of the variables
+    nrows = len(variables) / 2
 
     # Plot these values
     # Set up a single subplot
-    fig, axs = plt.subplots(nrows=1, ncols=2,
+    fig, axs = plt.subplots(nrows=nrows, ncols=2,
                             figsize=(figsize_x_in, figsize_y_in),
                             subplot_kw={"projection": proj})
 
@@ -939,110 +931,82 @@ def plot_corr_subplots(
     lats = lats[lat1_idx_grid:lat2_idx_grid]
     lons = lons[lon1_idx_grid:lon2_idx_grid]
 
-    # Constrain the corr_array to the grid
-    corr_array_1 = corr_array_1[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+    # Initialize an empty list to store the correlation arrays
+    corr_arrays_const = []
+    pval_arrays_const = []
 
-    # # print the shape of the pval_array_1
-    # print("pval_array_1.shape: ", pval_array_1.shape)
+    # Same for teh corr_var_ts
+    corr_var_ts_const = []
 
-    # # Print the values of the pval_array_1
-    # print("pval_array_1: ", pval_array_1)
 
-    # Constrain the pval_array to the grid
-    pval_array_1 = pval_array_1[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+    # loop over the corr_arrays and pval_arrays
+    for i, (corr_array, pval_array, variable) in enumerate(zip(corr_arrays, pval_arrays, variables)):
 
-    # # Print the values of the pval_array_1
-    # print("pval_array_1: ", pval_array_1)
+        # Constrain the corr_array to the grid
+        corr_array_const = corr_array[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
 
-    # # print the shape of the pval_array_2
-    # print("pval_array_1.shape: ", pval_array_1.shape)
+        # Constrain the pval_array to the grid
+        pval_array_const = pval_array[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
 
-    # Constrain the corr_array to the grid
-    corr_array_2 = corr_array_2[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+        # Store the arrays in the list
+        corr_arrays_const.append(corr_array_const)
 
-    # # print the shape of the pval_array_2
-    # print("pval_array_2.shape: ", pval_array_2.shape)
-
-    # # Print the values of the pval_array_2
-    # print("pval_array_2: ", pval_array_2)
-
-    # Constrain the pval_array to the grid
-    pval_array_2 = pval_array_2[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+        # Store the arrays in the list
+        pval_arrays_const.append(pval_array_const)
 
     # If nao and corr_var_ts_1 and corr_var_ts_2 are not None
-    if nao is not None and corr_var_ts_1 is not None and corr_var_ts_2 is not None:
-        # Constraint the corr_var_ts array to the grid
-        corr_var_ts_1 = corr_var_ts_1[
-            :, lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid
-        ]
+    if nao is not None and corr_var_ts is not None:
+        # Loop over the corr_var_ts
+        for i, corr_var_ts in enumerate(corr_var_ts):
+            # Constraint the corr_var_ts array to the grid
+            corr_var_ts_const = corr_var_ts[
+                :, lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid
+            ]
 
-        # Constraint the corr_var_ts array to the grid
-        corr_var_ts_2 = corr_var_ts_2[
-            :, lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid
-        ]
+            # Append this to the list
+            corr_var_ts_const.append(corr_var_ts_const)
 
     # Set up the contour levels
-    clevs = np.arange(-1.0, 1.1, 0.1)
+    clevs = np.arange(-0.9, 1.0, 0.2)
 
     # Include coastlines
-    axs[0].coastlines()
-    axs[1].coastlines()
+    for i, (ax, corr_array, pval_array, variable) in enumerate(zip(axs, corr_arrays_const, pval_arrays_const, variables)):
+        # Add coastlines
+        ax.coastlines()
 
-    # Include the gridlines as dashed lines
-    gl0 = axs[0].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
-    gl1 = axs[1].gridlines(linestyle="--", alpha=0.5, draw_labels=True)
+        # Include the gridlines as dashed lines
+        gl = ax.gridlines(linestyle="--", alpha=0.5, draw_labels=True)
 
-    # Set the labels for the gridlines
-    gl0.top_labels = False
-    gl0.right_labels = False
-    gl1.top_labels = False
-    gl1.left_labels = False
-    gl1.right_labels = False
+        # Set the labels for the gridlines
+        gl.top_labels = False
+        gl.right_labels = False
+        gl.top_labels = False
+        gl.left_labels = False
+        gl.right_labels = False
 
-    # plot the first contour plot on the first subplot
-    cf1 = axs[0].contourf(lons, lats, corr_array_1, clevs, transform=proj, cmap="RdBu_r")
+        # plot the first contour plot on the first subplot
+        cf = ax.contourf(lons, lats, corr_array, clevs, transform=proj, cmap="bwr")
 
-    # plot the second contour plot on the second subplot
-    cf2 = axs[1].contourf(lons, lats, corr_array_2, clevs, transform=proj, cmap="RdBu_r")
+        # if any of the p values are greater or less than the significance threshold
+        # Set where the p-values are greater or less than
+        # the significance threshold to nan
+        pval_array[(pval_array > sig_threshold) & (pval_array < 1 - sig_threshold)] = np.nan
 
-    # if any of the p values are greater or less than the significance threshold
-    # Set where the p-values are greater or less than
-    # the significance threshold to nan
-    pval_array_1[(pval_array_1 > sig_threshold) & (pval_array_1 < 1 - sig_threshold)] = np.nan
+        # Assert that not all of the values are nan
+        assert not np.all(np.isnan(pval_array)), "All values in the pval_array_1 are nan."
 
-    # Assert that not all of the values are nan
-    assert not np.all(np.isnan(pval_array_1)), "All values in the pval_array_1 are nan."
+        # How can I invert the p_val_arrays here?
+        # so that where the values are NaN, these are replaced with ones
+        # and where the values are not NaN, these are replaced with NaNs
+        # pval_array_1 = np.where(np.isnan(pval_array_1), 1, np.nan)
+        # pval_array_2 = np.where(np.isnan(pval_array_2), 1, np.nan)
 
-    # assert that not all of the values are nan
-    assert not np.all(np.isnan(pval_array_1)), "All values in the pval_array_1 are nan."
-
-    # print the pval_array_2
-    print("pval_array_2: ", pval_array_2)
-
-    # same for the other pval_array
-    pval_array_2[(pval_array_2 > sig_threshold) & (pval_array_2 < 1 - sig_threshold)] = np.nan
-
-    # assert that not all of the values are nan
-    assert not np.all(np.isnan(pval_array_2)), "All values in the pval_array_2 are nan."
-
-    # assert that not all of the values are nan
-    assert not np.all(np.isnan(pval_array_2)), "All values in the pval_array_2 are nan."
-
-    # How can I invert the p_val_arrays here?
-    # so that where the values are NaN, these are replaced with ones
-    # and where the values are not NaN, these are replaced with NaNs
-    # pval_array_1 = np.where(np.isnan(pval_array_1), 1, np.nan)
-    # pval_array_2 = np.where(np.isnan(pval_array_2), 1, np.nan)
-
-    # Plot the p-values
-    axs[0].contourf(lons, lats, pval_array_1, hatches=["...."], alpha=0.0, transform=proj)
-
-    # Plot the p-values
-    axs[1].contourf(lons, lats, pval_array_2, hatches=["...."], alpha=0.0, transform=proj)
+        # Plot the p-values
+        ax.contourf(lons, lats, pval_array, hatches=[".."], alpha=0.0, transform=proj)
 
     # Set up the colorbar
     # To be used for both subplots
-    cbar = plt.colorbar(cf1, ax=axs, orientation="horizontal", pad=0.05, shrink=0.6)
+    cbar = plt.colorbar(cf, ax=axs, orientation="horizontal", pad=0.05, shrink=0.6)
 
     # If the plot_gridbox is not None
     if plot_gridbox is not None:
@@ -1051,7 +1015,7 @@ def plot_corr_subplots(
             plot_gridbox, list
         ), "The plot_gridbox must be a list of gridboxes."
         # Loop over the gridboxes
-        for i, gridbox in enumerate(plot_gridbox):
+        for i, (gridbox, ax, cv_ts, label, variable) in enumerate(zip(plot_gridbox, axs, corr_var_ts_const, fig_labels, variables)):
             # Extract the lons and lats
             lon1, lon2 = gridbox["lon1"], gridbox["lon2"]
             lat1, lat2 = gridbox["lat1"], gridbox["lat2"]
@@ -1064,16 +1028,7 @@ def plot_corr_subplots(
             lat2_idx = np.argmin(np.abs(lats - lat2))
 
             # Add the gridbox to the plot
-            axs[0].plot(
-                [lon1, lon2, lon2, lon1, lon1],
-                [lat1, lat1, lat2, lat2, lat1],
-                color="green",
-                linewidth=2,
-                transform=proj,
-            )
-
-            # Add the gridbox to the secon plot
-            axs[1].plot(
+            ax.plot(
                 [lon1, lon2, lon2, lon1, lon1],
                 [lat1, lat1, lat2, lat2, lat1],
                 color="green",
@@ -1082,30 +1037,22 @@ def plot_corr_subplots(
             )
 
             # Constrain the corr_var_ts array to the gridbox
-            corr_var_ts_gridbox_1 = corr_var_ts_1[
-                :, lat1_idx:lat2_idx, lon1_idx:lon2_idx
-            ].mean(axis=(1, 2))
-
-            # Constrain the corr_var_ts array to the gridbox
-            corr_var_ts_gridbox_2 = corr_var_ts_2[
+            corr_var_ts_gridbox = cv_ts[
                 :, lat1_idx:lat2_idx, lon1_idx:lon2_idx
             ].mean(axis=(1, 2))
 
             # Calculate the correlation
-            corr_1, pval_1 = pearsonr(nao, corr_var_ts_gridbox_1)
-
-            # Calculate the correlation
-            corr_2, pval_2 = pearsonr(nao, corr_var_ts_gridbox_2)
+            corr, pval = pearsonr(nao, corr_var_ts_gridbox)
 
             # Include the correlation on the plot
-            axs[0].text(
+            ax.text(
                 0.05,
                 0.05,
                 (
-                    f"ACC = {corr_1:.2f} "
-                    f"(P = {pval_1:.2f})"
+                    f"ACC = {corr:.2f} "
+                    f"(P = {pval:.2f})"
                 ),
-                transform=axs[0].transAxes,
+                transform=ax.transAxes,
                 fontsize=fontsize,
                 verticalalignment="bottom",
                 horizontalalignment="left",
@@ -1113,65 +1060,26 @@ def plot_corr_subplots(
             )
 
             # Include the figure label
-            axs[0].text(
+            ax.text(
                 0.95,
                 0.05,
-                fig_labels[0],
-                transform=axs[0].transAxes,
+                label,
+                transform=ax.transAxes,
                 fontsize=fontsize,
                 verticalalignment="bottom",
                 horizontalalignment="right",
                 bbox=dict(facecolor="white", alpha=0.5),
             )
 
-            # Include the correlation on the plot
-            axs[1].text(
-                0.05,
-                0.05,
-                (
-                    f"ACC = {corr_2:.2f} "
-                    f"(P = {pval_2:.2f})"
-                ),
-                transform=axs[1].transAxes,
-                fontsize=fontsize,
-                verticalalignment="bottom",
-                horizontalalignment="left",
-                bbox=dict(facecolor="white", alpha=0.5),
-            )
-
             # Include the variable name in the top left of the plot
-            axs[0].text(
+            ax.text(
                 0.05,
                 0.95,
-                variable_1,
-                transform=axs[0].transAxes,
+                variable,
+                transform=ax.transAxes,
                 fontsize=fontsize,
                 verticalalignment="top",
                 horizontalalignment="left",
-                bbox=dict(facecolor="white", alpha=0.5),
-            )
-
-            # Include the variable name in the top left of the plot
-            axs[1].text(
-                0.05,
-                0.95,
-                variable_2,
-                transform=axs[1].transAxes,
-                fontsize=fontsize,
-                verticalalignment="top",
-                horizontalalignment="left",
-                bbox=dict(facecolor="white", alpha=0.5),
-            )
-
-            # Include the figure label
-            axs[1].text(
-                0.95,
-                0.05,
-                fig_labels[1],
-                transform=axs[1].transAxes,
-                fontsize=fontsize,
-                verticalalignment="bottom",
-                horizontalalignment="right",
                 bbox=dict(facecolor="white", alpha=0.5),
             )
     else:
@@ -1186,8 +1094,11 @@ def plot_corr_subplots(
     # Set up the current time
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    # turn the list of variables into a string
+    variables_str = "_".join(variables)
+
     # Set up the fname
-    fname = f"{variable_1}_{variable_2}_nao_corr_plot_{current_time}.pdf"
+    fname = f"{variables_str}_nao_corr_plot_{current_time}.pdf"
 
     # Save the plot
     plt.savefig(os.path.join(plot_dir, fname), dpi=save_dpi)
