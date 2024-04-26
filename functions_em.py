@@ -890,13 +890,18 @@ def plot_corr_subplots(
 
     # Set up the wspace
     # set the nrows depending on the len of the variables
-    nrows = len(variables) / 2
+    nrows = int(len(variables) / 2)
 
     # Plot these values
     # Set up a single subplot
     fig, axs = plt.subplots(nrows=nrows, ncols=2,
                             figsize=(figsize_x_in, figsize_y_in),
                             subplot_kw={"projection": proj})
+
+    # if axs is a 2d array
+    if axs.ndim == 2:
+        # Flatten the axs
+        axs = axs.flatten()
 
     # Adjust the space between the subplots
     plt.subplots_adjust(wspace=w_space)
@@ -938,7 +943,6 @@ def plot_corr_subplots(
     # Same for teh corr_var_ts
     corr_var_ts_const = []
 
-
     # loop over the corr_arrays and pval_arrays
     for i, (corr_array, pval_array, variable) in enumerate(zip(corr_arrays, pval_arrays, variables)):
 
@@ -959,12 +963,12 @@ def plot_corr_subplots(
         # Loop over the corr_var_ts
         for i, corr_var_ts in enumerate(corr_var_ts):
             # Constraint the corr_var_ts array to the grid
-            corr_var_ts_const = corr_var_ts[
+            corr_var_ts = corr_var_ts[
                 :, lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid
             ]
 
             # Append this to the list
-            corr_var_ts_const.append(corr_var_ts_const)
+            corr_var_ts_const.append(corr_var_ts)
 
     # Set up the contour levels
     clevs = np.arange(-0.9, 1.0, 0.2)
@@ -985,7 +989,8 @@ def plot_corr_subplots(
         gl.right_labels = False
 
         # plot the first contour plot on the first subplot
-        cf = ax.contourf(lons, lats, corr_array, clevs, transform=proj, cmap="bwr")
+        cf = ax.contourf(lons, lats, corr_array, clevs, transform=proj, cmap="bwr",
+                         extend="both")
 
         # if any of the p values are greater or less than the significance threshold
         # Set where the p-values are greater or less than
@@ -5435,42 +5440,99 @@ def aggregate_model_correlations(
 
     return corr_df
 
-obs_vars = ["si10", "var131"]
-obs_var_data_paths = [dicts.regrid_file, dicts.obs_u_850_regrid]
-obs_var_levels = [0, 85000]
+# obs_vars = ["si10", "var131"]
+# obs_var_data_paths = [dicts.regrid_file, dicts.obs_u_850_regrid]
+# obs_var_levels = [0, 85000]
 
-# set up the model dict for si10
-# model config for 10m wind speeds
-model_config_sfcWind = {
-    "variable": "sfcWind",
-    "season": "ONDJFM",
-    "region": "global",
-    "nao": "nao_default",
-    "start_year": 1961,
-    "end_year": 2014,
-    "forecast_range": "2-9",
-    "lag": 4,
-    "method": "nao_matched",
-}
+# # set up the model dict for si10
+# # model config for 10m wind speeds
+# model_config_sfcWind = {
+#     "variable": "sfcWind",
+#     "season": "ONDJFM",
+#     "region": "global",
+#     "nao": "nao_default",
+#     "start_year": 1961,
+#     "end_year": 2014,
+#     "forecast_range": "2-9",
+#     "lag": 4,
+#     "method": "nao_matched",
+# }
 
-# Set up the model config for 850U
-model_config_850u = {
-    "variable": "ua",
-    "season": "ONDJFM",
-    "region": "global",
-    "nao": "nao_default",
-    "start_year": 1961,
-    "end_year": 2014,
-    "forecast_range": "2-9",
-    "lag": 4,
-    "method": "nao_matched",
-}
+# # Set up the model config for 850U
+# model_config_850u = {
+#     "variable": "ua",
+#     "season": "ONDJFM",
+#     "region": "global",
+#     "nao": "nao_default",
+#     "start_year": 1961,
+#     "end_year": 2014,
+#     "forecast_range": "2-9",
+#     "lag": 4,
+#     "method": "nao_matched",
+# }
 
-# make the list of model configs
-model_configs = [model_config_sfcWind, model_config_850u]
+# # make the list of model configs
+# model_configs = [model_config_sfcWind, model_config_850u]
 
-# make the list of model array directories
-model_arr_dirs = [
-    "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/",
-    "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/test-sfcWind",
-]
+# # make the list of model array directories
+# model_arr_dirs = [
+#     "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/",
+#     "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/test-sfcWind",
+# ]
+
+# Function to calculate the correlations
+def calculate_correlation_and_pvalue(
+    stats_dict: dict,
+    nao_var_name: str = "nao",
+    corr_var_name: str = "corr_var_ts",
+):
+    """
+    Function to calculate the correlation and p-value between the NAO index
+    and the model data.
+
+    Args:
+    -----
+    stats_dict: dict
+        The dictionary containing the statistics.
+
+    nao_var_name: str
+        The name of the NAO variable.
+        Default is "nao".
+
+    corr_var_name: str
+        The name of the variable to calculate the correlation with.
+        Default is "corr_var_ts".
+
+    Output:
+
+    corr_array: np.ndarray
+
+    pval_array: np.ndarray
+
+    """
+    # Extract the nao index and corr_var_ts from the dictionary
+    nao = stats_dict[nao_var_name]
+    corr_var_ts = stats_dict[corr_var_name]
+
+    # Create empty arrays for correlation and p-values
+    corr_array = np.empty([corr_var_ts.shape[1], corr_var_ts.shape[2]])
+    pval_array = np.empty([corr_var_ts.shape[1], corr_var_ts.shape[2]])
+
+    # Loop over the lats and lons
+    for lat in tqdm(range(corr_var_ts.shape[1])):
+        for lon in range(corr_var_ts.shape[2]):
+            # Extract the corr_var_ts for the lat and lon
+            corr_var_anom_values_lat_lon = corr_var_ts[:, lat, lon]
+
+            # Replace NaNs with 0
+            corr_var_anom_values_lat_lon = np.nan_to_num(corr_var_anom_values_lat_lon, nan=0)
+
+            # Calculate the correlation and p-value
+            corr, pval = pearsonr(nao, corr_var_anom_values_lat_lon)
+
+            # Assign the correlation and p-value to the arrays
+            corr_array[lat, lon] = corr
+            pval_array[lat, lon] = pval
+
+    # Return the correlation and p-value arrays
+    return corr_array, pval_array
