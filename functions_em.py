@@ -794,6 +794,7 @@ def plot_corr_subplots(
     fig_labels: list = ["b", "c"],
     fontsize: int = 12,
     w_space: float = 0.1,
+    h_space: float = 0.1,
 ):
     """
     Plots the correlation and p-values for the spatial correlation.
@@ -904,7 +905,7 @@ def plot_corr_subplots(
         axs = axs.flatten()
 
     # Adjust the space between the subplots
-    plt.subplots_adjust(wspace=w_space)
+    plt.subplots_adjust(wspace=w_space, hspace=h_space)
     
     # Focus on the euro-atlantic region
     lat1_grid, lat2_grid = lat_bounds[0], lat_bounds[1]
@@ -981,12 +982,29 @@ def plot_corr_subplots(
         # Include the gridlines as dashed lines
         gl = ax.gridlines(linestyle="--", alpha=0.5, draw_labels=True)
 
-        # Set the labels for the gridlines
-        gl.top_labels = False
-        gl.right_labels = False
-        gl.top_labels = False
-        gl.left_labels = False
-        gl.right_labels = False
+        # if i = 0 or i = 2
+        if i == 0:
+            # Set the labels for the gridlines
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.bottom_labels = False
+        elif i == 1:
+            # Set the labels for the gridlines
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.left_labels = False
+            gl.bottom_labels = False
+        elif i == 2:
+            # Set the labels for the gridlines
+            gl.top_labels = False
+            gl.right_labels = False
+        elif i == 3:
+            # Set the labels for the gridlines
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.left_labels = False
+        else:
+            AssertionError("The number of subplots is greater than 4.")
 
         # plot the first contour plot on the first subplot
         cf = ax.contourf(lons, lats, corr_array, clevs, transform=proj, cmap="bwr",
@@ -1012,6 +1030,12 @@ def plot_corr_subplots(
     # Set up the colorbar
     # To be used for both subplots
     cbar = plt.colorbar(cf, ax=axs, orientation="horizontal", pad=0.05, shrink=0.6)
+
+    # set the ticks
+    ticks = np.arange(-0.8, 0.9, 0.2)
+
+    # set the cbar labels
+    cbar.set_ticks(ticks)
 
     # If the plot_gridbox is not None
     if plot_gridbox is not None:
@@ -1055,13 +1079,13 @@ def plot_corr_subplots(
                 0.05,
                 (
                     f"ACC = {corr:.2f} "
-                    f"(P = {pval:.2f})"
+                    f"(p = {pval:.2f})"
                 ),
                 transform=ax.transAxes,
                 fontsize=fontsize,
                 verticalalignment="bottom",
                 horizontalalignment="left",
-                bbox=dict(facecolor="white", alpha=0.5),
+                bbox=dict(facecolor="white", alpha=0.6),
             )
 
             # Include the figure label
@@ -1073,25 +1097,29 @@ def plot_corr_subplots(
                 fontsize=fontsize,
                 verticalalignment="bottom",
                 horizontalalignment="right",
-                bbox=dict(facecolor="white", alpha=0.5),
+                bbox=dict(facecolor="white", alpha=0.6),
             )
+
+            # Pass the variable name through the dictionary object
+            variable_name = dicts.var_name_map[variable]
 
             # Include the variable name in the top left of the plot
             ax.text(
                 0.05,
                 0.95,
-                variable,
+                variable_name,
                 transform=ax.transAxes,
                 fontsize=fontsize,
                 verticalalignment="top",
                 horizontalalignment="left",
-                bbox=dict(facecolor="white", alpha=0.5),
+                bbox=dict(facecolor="white", alpha=0.6),
+                weight="bold",
             )
     else:
         print("No gridboxes to plot.")
 
     # Set up the colorbar label
-    cbar.set_label("Pearson correlation with ONDJFM NAO")
+    cbar.set_label("ACC")
 
     # # Specify a tight layout
     # plt.tight_layout()
@@ -4197,11 +4225,16 @@ def plot_time_series(
     predictor_col: str,
     predictand_col: str,
     ylabel: str,
-    figsize_x: int = 10,
-    figsize_y: int = 5,
+    figsize_x: int = 12,
+    figsize_y: int = 6,
     twin_axes: bool = True,
     ylabel_2: str = None,
     do_detrend: bool = False,
+    normalise_anom: bool = False,
+    title: str = None,
+    label: str = None,
+    fontsize: int = 10,
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ) -> None:
     """
     Plots the time series for the model NAO and the observed variable.
@@ -4236,6 +4269,18 @@ def plot_time_series(
     do_detrend: bool
         True for detrended time series.
 
+    normalise_anom: bool
+        True for normalised anomalies for the predictand variable.
+
+    title: str
+        The title of the plot.
+    
+    label: str
+        The label for the plot. E.g. a, b, c, d etc.
+
+    save_dir: str
+        The directory to save the plots.
+
     Returns:
     --------
 
@@ -4257,17 +4302,32 @@ def plot_time_series(
     if predictor_col in ["NAO anomaly (Pa)", "model_nao_mean"]:
         df[predictor_col] = df[predictor_col] / 100
 
+    # if normalise_anom_predictand is True
+    if normalise_anom is True:
+        print("Normalising the variables")
+        # Normalise the predictand variable
+        df[predictand_col] = (df[predictand_col] - df[predictand_col].mean()) / df[
+            predictand_col
+        ].std()
+
+        # Normalise the predictor variable
+        df[predictor_col] = (df[predictor_col] - df[predictor_col].mean()) / df[
+            predictor_col
+        ].std()
+
     # Plot the model NAO mean
-    ax.plot(df.index, df[f"{predictor_col}"], color="b")
+    ax.plot(df.index, df[f"{predictor_col}"], color="k")
 
-    # Plot the y label
-    ax.set_ylabel(ylabel, color="b")
+    # if twin_axes is True
+    if twin_axes is True:
+        # Plot the y label
+        ax.set_ylabel(ylabel, color="b")
 
-    # set the yticks
-    ax.tick_params("y", colors="b")
-
-    # Include a horixzontal black dashed line at y=0
-    plt.axhline(0, color="black", linestyle="--")
+        # set the yticks
+        ax.tick_params("y", colors="b")
+    else:
+        # Set the ylabel
+        ax.set_ylabel(ylabel)
 
     if twin_axes is True:
         # Create a twin axes
@@ -4283,29 +4343,71 @@ def plot_time_series(
         ax2.tick_params("y", colors="r")
     else:
         # Plot the observed time series
-        ax.plot(df.index, df[f"{predictand_col}"], color="r")
+        ax.plot(df.index, df[f"{predictand_col}"], color="b")
 
     # Set up the x-axis label
     ax.set_xlabel("Initialization year")
 
+    # Include a horixzontal black dashed line at y=0
+    plt.axhline(0, color="black", linestyle="--")
+
     # Calculate the correlation coefficients
     corr, p_val = pearsonr(df[f"{predictor_col}"], df[f"{predictand_col}"])
 
-    # Include a textbox in the top left hand corner with the corr and p values
+    # In the top lef hand corner
     plt.text(
         0.05,
         0.95,
-        f"Corr: {round(corr, 2)}\n p-value: {round(p_val, 3)}",
-        horizontalalignment="left",
-        verticalalignment="top",
+        (
+            f"ACC = {corr:.2f} "
+            f"(P = {p_val:.2f})"
+        ),
         transform=plt.gca().transAxes,
+        fontsize=fontsize,
+        verticalalignment="top",
+        horizontalalignment="left",
         bbox=dict(facecolor="white", alpha=0.5),
     )
 
+    # if label is not none
+    if label is not None:
+        # add a text box to the plot in the bottom right hand corner with the label
+        plt.text(
+            0.95,
+            0.05,
+            f"{label}",
+            fontsize=fontsize,
+            transform=plt.gca().transAxes,
+            verticalalignment="bottom",
+            horizontalalignment="right",
+            bbox=dict(facecolor="white", alpha=0.5),
+        )
+
     # print(p_val)
 
-    # Include a legend
-    plt.legend(loc="upper right")
+    # If title is not none
+    if title is not None:
+        # Set the title in bold
+        plt.title(title, fontweight="bold")
+
+    # # Include a legend
+    # plt.legend(loc="upper right")
+        
+    # Save the plot
+    # Current time
+    now = datetime.now()
+
+    # Current date
+    date = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+    # assert that the save_dir exists
+    assert os.path.exists(save_dir), f"The directory {save_dir} does not exist."
+
+    # Set the filename
+    filename = f"{save_dir}{predictor_col}_{predictand_col}_{date}.pdf"
+
+    # Save the plot
+    plt.savefig(filename, dpi=600)
 
     # Show the plot
     plt.show()
