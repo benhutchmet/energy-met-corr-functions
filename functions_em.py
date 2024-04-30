@@ -697,7 +697,7 @@ def plot_corr(
     pval_array[(pval_array > sig_threshold) & (pval_array < 1 - sig_threshold)] = np.nan
 
     # Plot the p-values
-    ax.contourf(lons, lats, pval_array, hatches=["...."], alpha=0.0, transform=proj)
+    ax.contourf(lons, lats, pval_array, hatches=[".."], alpha=0.0, transform=proj)
 
     # Set up the colorbar
     cbar = plt.colorbar(cf, ax=ax, orientation="horizontal", pad=0.05, shrink=0.8)
@@ -1025,7 +1025,7 @@ def plot_corr_subplots(
         # pval_array_2 = np.where(np.isnan(pval_array_2), 1, np.nan)
 
         # Plot the p-values
-        ax.contourf(lons, lats, pval_array, hatches=[".."], alpha=0.0, transform=proj)
+        ax.contourf(lons, lats, pval_array, hatches=["."], alpha=0.0, transform=proj)
 
     # Set up the colorbar
     # To be used for both subplots
@@ -1738,6 +1738,7 @@ def correlate_nao_uread(
     df_dir: str = "/gws/nopw/j04/canari/users/benhutch/nao_stats_df/",
     model_arr_dir: str = "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/",
     level: int = 0,
+    trend_level: int = 10000,
 ) -> pd.DataFrame:
     """
     Function which correlates the observed NAO (from ERA5) with demand,
@@ -1819,6 +1820,9 @@ def correlate_nao_uread(
     level
         The level to use for the model data
 
+    trend_level
+        The level to use for the trend data
+
     Returns:
 
     df: pd.DataFrame
@@ -1848,18 +1852,40 @@ def correlate_nao_uread(
     # Print the nuts keys
     print("NUTS_keys for UREAD data: ", NUTS_keys)
 
+    # if trend_level is not 0
+    if trend_level != 10000:
+        # Extract the trend data
+        trend_levels = data["trend_levels"].values
+
+        # print the trend levels
+        print("Trend levels for UREAD data: ", trend_levels)
+
+        # Find the index of the trend level
+        trend_level_idx = np.where(trend_levels == trend_level)[0][0]
+
+        # Extract the trend data
+        data = data.isel(trend=trend_level_idx)
+
     # Turn this data into a dataframe
     df = data.to_dataframe()
 
     # # Print the head of the dataframe
     # print("Head of the dataframe: ", df.head())
 
-    # Pivot the dataframe
-    df = df.reset_index().pivot(
-        index="time_in_hours_from_first_jan_1950",
-        columns="NUTS",
-        values="timeseries_data",
-    )
+    if trend_level != 10000:
+        # Pivot the dataframe
+        df = df.reset_index().pivot(
+            index="time_in_hours_from_first_jan_1950",
+            columns="NUTS",
+            values="detrended_data",
+        )
+    else:
+        # Pivot the dataframe
+        df = df.reset_index().pivot(
+            index="time_in_hours_from_first_jan_1950",
+            columns="NUTS",
+            values="timeseries_data",
+        )
 
     # # Print the head of the dataframe again
     # print("Head of the dataframe: ", df.head())
@@ -4234,6 +4260,10 @@ def plot_time_series(
     title: str = None,
     label: str = None,
     fontsize: int = 10,
+    predictor_color: str = "k",
+    predictand_color: str = "b",
+    use_col_x: str = None,
+    inverse_predictand: bool = False,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ) -> None:
     """
@@ -4278,6 +4308,21 @@ def plot_time_series(
     label: str
         The label for the plot. E.g. a, b, c, d etc.
 
+    fontsize: int
+        The fontsize for the text on the plot.
+
+    predictor_color: str
+        The colour of the predictor variable.
+
+    predictand_color: str
+        The colour of the predictand variable.
+
+    use_col_x: str
+        The column to use for the x-axis.
+
+    inverse_predictand: bool
+        Whether to invert the predictand variable.
+        
     save_dir: str
         The directory to save the plots.
 
@@ -4315,8 +4360,10 @@ def plot_time_series(
             predictor_col
         ].std()
 
-    # Plot the model NAO mean
-    ax.plot(df.index, df[f"{predictor_col}"], color="k")
+    if use_col_x is not None:
+        ax.plot(df[use_col_x], df[f"{predictor_col}"], color=predictor_color)
+    else:
+        ax.plot(df.index, df[f"{predictor_col}"], color=predictor_color)
 
     # if twin_axes is True
     if twin_axes is True:
@@ -4329,12 +4376,19 @@ def plot_time_series(
         # Set the ylabel
         ax.set_ylabel(ylabel)
 
+    # if inverse_predictand is True
+    if inverse_predictand is True:
+        # Invert the predictand variable
+        df[f"{predictand_col}"] = -df[f"{predictand_col}"]
+
     if twin_axes is True:
         # Create a twin axes
         ax2 = ax.twinx()
 
-        # Plot the second variable
-        ax2.plot(df.index, df[f"{predictand_col}"], color="r")
+        if use_col_x is not None:
+            ax2.plot(df[use_col_x], df[f"{predictand_col}"], color=predictand_color)
+        else:
+            ax2.plot(df.index, df[f"{predictand_col}"], color=predictand_color)
 
         # Set up the y label for the second axis
         ax2.set_ylabel(ylabel_2, color="r")
@@ -4342,11 +4396,13 @@ def plot_time_series(
         # Set the colour of the ticks
         ax2.tick_params("y", colors="r")
     else:
-        # Plot the observed time series
-        ax.plot(df.index, df[f"{predictand_col}"], color="b")
+        if use_col_x is not None:
+            ax.plot(df[use_col_x], df[f"{predictand_col}"], color=predictand_color)
+        else:
+            ax.plot(df.index, df[f"{predictand_col}"], color=predictand_color)
 
     # Set up the x-axis label
-    ax.set_xlabel("Initialization year")
+    ax.set_xlabel("Centre of 8-year window")
 
     # Include a horixzontal black dashed line at y=0
     plt.axhline(0, color="black", linestyle="--")
