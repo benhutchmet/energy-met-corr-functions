@@ -972,7 +972,8 @@ def plot_corr_subplots(
             corr_var_ts_const.append(corr_var_ts)
 
     # Set up the contour levels
-    clevs = np.arange(-0.9, 1.0, 0.2)
+    # clevs = np.arange(-0.9, 1.0, 0.2)
+    clevs = np.array([-1. , -0.8, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.8, 1.0])
 
     # Include coastlines
     for i, (ax, corr_array, pval_array, variable) in enumerate(zip(axs, corr_arrays_const, pval_arrays_const, variables)):
@@ -1007,8 +1008,7 @@ def plot_corr_subplots(
             AssertionError("The number of subplots is greater than 4.")
 
         # plot the first contour plot on the first subplot
-        cf = ax.contourf(lons, lats, corr_array, clevs, transform=proj, cmap="bwr",
-                         extend="both")
+        cf = ax.contourf(lons, lats, corr_array, clevs, transform=proj, cmap="bwr")
 
         # if any of the p values are greater or less than the significance threshold
         # Set where the p-values are greater or less than
@@ -1032,7 +1032,8 @@ def plot_corr_subplots(
     cbar = plt.colorbar(cf, ax=axs, orientation="horizontal", pad=0.05, shrink=0.6)
 
     # set the ticks
-    ticks = np.arange(-0.8, 0.9, 0.2)
+    # ticks = np.arange(-0.8, 0.9, 0.2)
+    ticks = np.array([-1.0, -0.8, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.8, 1.0])
 
     # set the cbar labels
     cbar.set_ticks(ticks)
@@ -4248,14 +4249,15 @@ def plot_calib_corr(
 # Define a function for plotting the time series
 def plot_time_series(
     df: pd.DataFrame,
-    predictor_col: str,
-    predictand_col: str,
+    predictor_col_name: str,
+    predictand_col_name: str,
     ylabel: str,
     figsize_x: int = 12,
     figsize_y: int = 6,
     twin_axes: bool = True,
     ylabel_2: str = None,
-    do_detrend: bool = False,
+    do_detrend_predictor: bool = False,
+    do_detrend_predictand: bool = False,
     normalise_anom: bool = False,
     title: str = None,
     label: str = None,
@@ -4264,6 +4266,8 @@ def plot_time_series(
     predictand_color: str = "b",
     use_col_x: str = None,
     inverse_predictand: bool = False,
+    manual_ylims: list = None,
+    calc_rmse: bool = False,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ) -> None:
     """
@@ -4296,8 +4300,11 @@ def plot_time_series(
     y_label2: str
         In the case of using twin axes, the label for this second axis.
 
-    do_detrend: bool
-        True for detrended time series.
+    do_detrend_predictor: bool
+        True for detrending the predictor variable.
+
+    do_detrend_predictand: bool
+        True for detrending the predictand variable.
 
     normalise_anom: bool
         True for normalised anomalies for the predictand variable.
@@ -4323,6 +4330,12 @@ def plot_time_series(
     inverse_predictand: bool
         Whether to invert the predictand variable.
         
+    manual_ylims: list
+        The manual y limits for the plot.
+
+    calc_rmse: bool
+        Whether to calculate the RMSE.
+
     save_dir: str
         The directory to save the plots.
 
@@ -4334,36 +4347,74 @@ def plot_time_series(
     """
 
     # if do_detrend is true
-    if do_detrend is True:
+    if do_detrend_predictor is True:
         # Detrend the time series
-        df[predictor_col] = signal.detrend(df[predictor_col])
-        df[predictand_col] = signal.detrend(df[predictand_col])
+        predictor_col = signal.detrend(df[predictor_col_name])
+    else:
+        predictor_col = df[predictor_col_name]
+
+    if do_detrend_predictand is True:
+        # Detrend the time series
+        predictand_col = signal.detrend(df[predictand_col_name])
+    else:
+        predictand_col = df[predictand_col_name]
 
     # Set up the figure
     fig, ax = plt.subplots(figsize=(figsize_x, figsize_y))
 
     # if predictor col is "NAO anomaly (Pa)"
     # then divide by 100
-    if predictor_col in ["NAO anomaly (Pa)", "model_nao_mean"]:
-        df[predictor_col] = df[predictor_col] / 100
+    if predictor_col_name in ["NAO anomaly (Pa)", "model_nao_mean"]:
+        predictor_col = predictor_col / 100
 
     # if normalise_anom_predictand is True
     if normalise_anom is True:
         print("Normalising the variables")
         # Normalise the predictand variable
-        df[predictand_col] = (df[predictand_col] - df[predictand_col].mean()) / df[
-            predictand_col
-        ].std()
+        predictand_col = (predictand_col - predictand_col.mean()) / predictand_col.std()
 
         # Normalise the predictor variable
-        df[predictor_col] = (df[predictor_col] - df[predictor_col].mean()) / df[
-            predictor_col
-        ].std()
+        predictor_col = (predictor_col - predictor_col.mean()) / predictor_col.std()
+
+    if calc_rmse is True:
+        rmse = np.sqrt(np.mean((predictor_col - predictand_col) ** 2))
+
+        # set up the ci_lower and ci_upper
+        ci_lower, ci_upper = predictor_col - rmse, predictor_col + rmse
+
+        # Plot the RMSE
+        ax.fill_between(df.index, ci_lower, ci_upper, color="red", alpha=0.3)
+
+    # if inverse_predictand is True
+    if inverse_predictand is True:
+        # Invert the predictand variable
+        # df[f"{predictand_col}"] = -df[f"{predictand_col}"]
+        predictand_col = -predictand_col
+
+    if twin_axes is True:
+        # Create a twin axes
+        ax2 = ax.twinx()
+
+        if use_col_x is not None:
+            ax2.plot(df[use_col_x], df[f"{predictand_col}"], color=predictand_color)
+        else:
+            ax2.plot(df.index, predictand_col, color=predictand_color)
+
+        # Set up the y label for the second axis
+        ax2.set_ylabel(ylabel_2, color="r")
+
+        # Set the colour of the ticks
+        ax2.tick_params("y", colors="r")
+    else:
+        if use_col_x is not None:
+            ax.plot(df[use_col_x], predictand_col, color=predictand_color)
+        else:
+            ax.plot(df.index, predictand_col, color=predictand_color)
 
     if use_col_x is not None:
         ax.plot(df[use_col_x], df[f"{predictor_col}"], color=predictor_color)
     else:
-        ax.plot(df.index, df[f"{predictor_col}"], color=predictor_color)
+        ax.plot(df.index, predictor_col, color=predictor_color)
 
     # if twin_axes is True
     if twin_axes is True:
@@ -4376,39 +4427,14 @@ def plot_time_series(
         # Set the ylabel
         ax.set_ylabel(ylabel)
 
-    # if inverse_predictand is True
-    if inverse_predictand is True:
-        # Invert the predictand variable
-        df[f"{predictand_col}"] = -df[f"{predictand_col}"]
-
-    if twin_axes is True:
-        # Create a twin axes
-        ax2 = ax.twinx()
-
-        if use_col_x is not None:
-            ax2.plot(df[use_col_x], df[f"{predictand_col}"], color=predictand_color)
-        else:
-            ax2.plot(df.index, df[f"{predictand_col}"], color=predictand_color)
-
-        # Set up the y label for the second axis
-        ax2.set_ylabel(ylabel_2, color="r")
-
-        # Set the colour of the ticks
-        ax2.tick_params("y", colors="r")
-    else:
-        if use_col_x is not None:
-            ax.plot(df[use_col_x], df[f"{predictand_col}"], color=predictand_color)
-        else:
-            ax.plot(df.index, df[f"{predictand_col}"], color=predictand_color)
+    # Calculate the correlation coefficients
+    corr, p_val = pearsonr(predictor_col, predictand_col)
 
     # Set up the x-axis label
     ax.set_xlabel("Centre of 8-year window")
 
     # Include a horixzontal black dashed line at y=0
     plt.axhline(0, color="black", linestyle="--")
-
-    # Calculate the correlation coefficients
-    corr, p_val = pearsonr(df[f"{predictor_col}"], df[f"{predictand_col}"])
 
     # In the top lef hand corner
     plt.text(
@@ -4440,6 +4466,11 @@ def plot_time_series(
         )
 
     # print(p_val)
+        
+    # if manual_ylims is not none
+    if manual_ylims is not None:
+        # Set the ylims
+        ax.set_ylim(manual_ylims)
 
     # If title is not none
     if title is not None:
@@ -4460,7 +4491,7 @@ def plot_time_series(
     assert os.path.exists(save_dir), f"The directory {save_dir} does not exist."
 
     # Set the filename
-    filename = f"{save_dir}{predictor_col}_{predictand_col}_{date}.pdf"
+    filename = f"{save_dir}{predictor_col_name}_{predictand_col_name}_{date}.pdf"
 
     # Save the plot
     plt.savefig(filename, dpi=600)
