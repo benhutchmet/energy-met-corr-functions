@@ -1565,7 +1565,19 @@ def process_data_for_scatter(
 
 # Define a function to plot the scatter plot
 def plot_scatter(
-    scatter_dict: dict,
+    df: pd.DataFrame,
+    predictor_col_name: str,
+    predictand_col_name: str,
+    predictor_var_name: str,
+    predictand_var_name: str,
+    xlabel: str,
+    ylabel: str,
+    figsize: tuple = (8, 8),
+    label: str = "d",
+    do_detrend_predictor: bool = False,
+    do_detrend_predictand: bool = False,
+    show_eqn_r_p: bool = False,
+    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
 ):
     """
     Function which plots the scatter plot.
@@ -1573,8 +1585,46 @@ def plot_scatter(
     Args:
     -----
 
-    scatter_dict: dict
-        The dictionary containing the scatter plot data.
+    df: pd.DataFrame
+        The dataframe containing the data to plot.
+
+    predictor_col_name: str
+        The column name for the predictor variable. Must be valid for the df.
+
+    predictand_col_name: str
+        The column name for the predictand variable. Must be valid for the df.
+
+    predictor_var_name: str
+        The name of the predictor variable.
+
+    predictand_var_name: str
+        The name of the predictand variable.
+
+    xlabel: str
+        The x-axis label for the scatter plot.
+
+    ylabel: str
+        The y-axis label for the scatter plot.
+
+    figsize: tuple
+        The figure size for the scatter plot.
+        default is (8, 8)
+
+    label: str
+        The label for the scatter plot.
+
+    do_detrend_predictor: bool
+        Whether to detrend the predictor variable.
+
+    do_detrend_predictand: bool
+        Whether to detrend the predictand variable.
+    
+    show_eqn_r_p: bool
+        Whether to show the equation, r, and p values on the plot.
+
+    save_dir: str
+        The directory to save the plot in.
+        default is "/gws/nopw/j04/canari/users/benhutch/plots"
 
     Returns:
     --------
@@ -1582,133 +1632,89 @@ def plot_scatter(
     None
     """
 
-    # Set up the mdi
-    mdi = -9999.0
+    # If do_detrend_predictor is True
+    if do_detrend_predictor:
+        predictor = signal.detrend(df[predictor_col_name])
+    else:
+        predictor = df[predictor_col_name]
+
+    # If do_detrend_predictand is True
+    if do_detrend_predictand:
+        predictand = signal.detrend(df[predictand_col_name])
+    else:
+        predictand = df[predictand_col_name]
 
     # Set up the figure
-    fig = plt.figure(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=figsize)
 
-    # Set up the axis
-    ax = fig.add_subplot(111)
+    # if predictor_var_name is 'nao' or 'delta_p'
+    if predictor_var_name in ["nao", "delta_p"]:
+        # Divide the predictor variable by 100
+        predictor = predictor / 100
 
-    # Find the minimum and maximum of the current x values
-    x_min = np.min(scatter_dict["predictor_var_ts"])
-    x_max = np.max(scatter_dict["predictor_var_ts"])
-
-    # Extend the range by a certain amount (e.g., 10% of the range)
-    x_range = x_max - x_min
-    x_min -= 0.1 * x_range
-    x_max += 0.1 * x_range
-
-    # Create a new array of x values using this extended range
-    x_values_extended = np.linspace(x_min, x_max, 100)
-
-    # print the stanard error from the scatter dictionary
-    print("Standard error: ", scatter_dict["std_err"])
-
-    # Plot the regression line using the new array of x values
-    ax.plot(
-        x_values_extended,
-        scatter_dict["slope"] * x_values_extended + scatter_dict["intercept"],
-        "k",
-    )
-
-    # Print the first quantile
-    print(
-        "First quantile: ",
-        scatter_dict[f"first_quantile_{scatter_dict['quantiles'][0]}"],
-    )
-
-    # Print the second quantile
-    print(
-        "Second quantile: ",
-        scatter_dict[f"second_quantile_{scatter_dict['quantiles'][1]}"],
-    )
-
-    # Fill between the 95th quantile
-    ax.fill_between(
-        x_values_extended,
-        scatter_dict["slope"] * x_values_extended
-        + scatter_dict["intercept"]
-        - scatter_dict[f"second_quantile_{scatter_dict['quantiles'][1]}"],
-        scatter_dict["slope"] * x_values_extended
-        + scatter_dict["intercept"]
-        + scatter_dict[f"second_quantile_{scatter_dict['quantiles'][1]}"],
-        color="0.8",
-        alpha=0.5,
-    )
-
-    # Fill between the 75th quantile
-    ax.fill_between(
-        x_values_extended,
-        scatter_dict["slope"] * x_values_extended
-        + scatter_dict["intercept"]
-        - scatter_dict[f"first_quantile_{scatter_dict['quantiles'][0]}"],
-        scatter_dict["slope"] * x_values_extended
-        + scatter_dict["intercept"]
-        + scatter_dict[f"first_quantile_{scatter_dict['quantiles'][0]}"],
-        color="0.6",
-        alpha=0.5,
-    )
+    # if predictand_var_name is 'pr' or 'var228'
+    if predictand_var_name in ["pr", "var228"]:
+        # Convert obs to mm day-1
+        predictand = predictand * 1000
 
     # Plot the scatter plot
-    ax.scatter(scatter_dict["predictor_var_ts"], scatter_dict["predictand_var_ts"])
+    ax.scatter(predictor, predictand, color="k")
 
-    # Plot the mean of the predictor variable as a vertical line
-    ax.axvline(
-        scatter_dict["predictor_var_mean"],
+    # Set up the line of best fit
+    slope, intercept, r_value, p_value, std_err = linregress(predictor, predictand)
+
+    # PLot the line of best fit
+    ax.plot(
+        predictor,
+        slope * predictor + intercept,
         color="k",
-        linestyle="--",
-        alpha=0.5,
-        linewidth=0.5,
     )
 
-    # Plot the mean of the predictand variable as a horizontal line
-    ax.axhline(
-        scatter_dict["predictand_var_mean"],
-        color="k",
-        linestyle="--",
-        alpha=0.5,
-        linewidth=0.5,
-    )
+    # Set up the equation
+    if intercept < 0:
+        equation = f"y = {slope:.2f}x - {np.abs(intercept):.2f}"
+    else:
+        equation = f"y = {slope:.2f}x + {np.abs(intercept):.2f}"
 
-    # Plot the r value in a text box in the top left corner
-    ax.text(
-        0.05,
-        0.95,
-        f"r = {scatter_dict['rval']:.2f}",
-        transform=ax.transAxes,
-        ha="left",
-        va="top",
-        bbox=dict(facecolor="white", alpha=0.5),
-        fontsize=12,
-    )
+    if show_eqn_r_p:
+        # Include the equation on the plot
+        ax.text(
+            0.05,
+            0.95,
+            (
+                f"{equation} "
+                f"(r = {r_value:.2f}, p = {p_value:.2f})"
+            ),
+            transform=ax.transAxes,
+            fontsize=12,
+            verticalalignment="top",
+            horizontalalignment="left",
+            bbox=dict(facecolor="white", alpha=0.5),
+        )
 
     # Set up the x-axis label
-    ax.set_xlabel(f"Hindcast {scatter_dict['predictor_var']} anomalies (hPa)")
+    ax.set_xlabel(xlabel, color="k", fontsize=14)
 
     # Set up the y-axis label
-    ax.set_ylabel(f"Observed {scatter_dict['predictand_var']} anomalies (m/s)")
+    ax.set_ylabel(ylabel, color="k", fontsize=14)
 
-    # Set up the title
-    ax.set_title(
-        f"Scatter plot for {scatter_dict['season']} {scatter_dict['forecast_range']} {scatter_dict['start_year']} - {scatter_dict['end_year']} {scatter_dict['gridbox_name']} gridbox"
-    )
+    # Set up the xticks
+    plt.tick_params(axis="x", colors="k")
 
-    # limit the x-axis
-    ax.set_xlim(x_min, x_max)
+    # Set up the yticks
+    plt.tick_params(axis="y", colors="k")
 
-    # Include axis ticks on the inside and outside
-    ax.tick_params(axis="both", direction="in", top=True, right=True)
+    # Set up the current time
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Set up the legend
-    ax.legend()
+    # Set up the filename
+    fname = f"{predictor_var_name}_{predictand_var_name}_scatter_plot_{current_time}.pdf"
 
-    # # Set up the grid
-    # ax.grid()
+    # Save the plot
+    plt.savefig(os.path.join(save_dir, fname), dpi=600)
 
-    # Show the plot
-    plt.show()
+    # print the path which the figure has been saved to
+    print(f"Figure saved to: {os.path.join(save_dir, fname)}")
 
     # Return none
     return None
