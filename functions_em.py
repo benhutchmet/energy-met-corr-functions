@@ -1704,6 +1704,18 @@ def plot_scatter(
     # Set up the yticks
     plt.tick_params(axis="y", colors="k")
 
+    # include the lable in the bottom right hand corner
+    ax.text(
+        0.95,
+        0.05,
+        label,
+        transform=ax.transAxes,
+        fontsize=12,
+        verticalalignment="bottom",
+        horizontalalignment="right",
+        bbox=dict(facecolor="white", alpha=0.5),
+    )
+
     # Set up the current time
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 
