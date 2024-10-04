@@ -1038,6 +1038,9 @@ def plot_corr_subplots(
     # set the cbar labels
     cbar.set_ticks(ticks)
 
+    # format the ticks with padding and fontsize
+    cbar.ax.tick_params(labelsize=fontsize, pad=5)
+
     # If the plot_gridbox is not None
     if plot_gridbox is not None:
         # Assert that it is a list
@@ -1079,7 +1082,7 @@ def plot_corr_subplots(
                 0.05,
                 0.05,
                 (
-                    f"ACC = {corr:.2f} "
+                    f"r = {corr:.2f} "
                     f"(p = {pval:.2f})"
                 ),
                 transform=ax.transAxes,
@@ -1120,7 +1123,10 @@ def plot_corr_subplots(
         print("No gridboxes to plot.")
 
     # Set up the colorbar label
-    cbar.set_label("ACC")
+    cbar.set_label("correlation coefficient", fontsize=fontsize)
+
+    # make sure that the ticks for the cbar are the correct size
+    cbar.ax.tick_params(labelsize=fontsize)
 
     # # Specify a tight layout
     # plt.tight_layout()
@@ -1682,8 +1688,7 @@ def plot_scatter(
             0.05,
             0.95,
             (
-                f"{equation} "
-                f"(r = {r_value:.2f}, p = {p_value:.2f})"
+                f"r = {r_value:.2f} (p = {p_value:.2f})"
             ),
             transform=ax.transAxes,
             fontsize=12,
@@ -4409,6 +4414,9 @@ def plot_time_series(
         # df[f"{predictand_col}"] = -df[f"{predictand_col}"]
         predictand_col = -predictand_col
 
+    # Calculate the correlation coefficients
+    corr, p_val = pearsonr(predictor_col, predictand_col)
+
     if twin_axes is True:
         # Create a twin axes
         ax2 = ax.twinx()
@@ -4444,9 +4452,6 @@ def plot_time_series(
     else:
         # Set the ylabel
         ax.set_ylabel(ylabel)
-
-    # Calculate the correlation coefficients
-    corr, p_val = pearsonr(predictor_col, predictand_col)
 
     # Set up the x-axis label
     ax.set_xlabel("Centre of 8-year window")
