@@ -785,10 +785,10 @@ def plot_corr_subplots(
     plot_gridbox: list = None,
     nao: np.ndarray = None,
     corr_var_ts: List[np.ndarray] = [None],
-    lat_bounds: list = [30, 80],
-    lon_bounds: list = [-60, 40],
-    figsize_x_px: int = 90,
-    figsize_y_px: int = 45,
+    lat_bounds: list = [20, 90],
+    lon_bounds: list = [-70, 40],
+    figsize_x: int = 90,
+    figsize_y: int = 45,
     save_dpi: int = 600,
     plot_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
     fig_labels: list = ["b", "c"],
@@ -866,28 +866,28 @@ def plot_corr_subplots(
     """
 
     # Set up the projection
-    proj = ccrs.PlateCarree(central_longitude=0)
+    proj = ccrs.PlateCarree()
 
-    # print the dpi
-    print("plt.rcParams['figure.dpi']: ", plt.rcParams["figure.dpi"])
+    # # print the dpi
+    # print("plt.rcParams['figure.dpi']: ", plt.rcParams["figure.dpi"])
 
-    px = 1 / plt.rcParams["figure.dpi"]
+    # px = 1 / plt.rcParams["figure.dpi"]
 
-    # print the px
-    print("px: ", px)
+    # # print the px
+    # print("px: ", px)
     
     # Calculate the figure size
-    print("figsize_x_px * px: ", figsize_x_px * px)
-    print("figsize_y_px * px: ", figsize_y_px * px)
+    # print("figsize_x_px * px: ", figsize_x_px * px)
+    # print("figsize_y_px * px: ", figsize_y_px * px)
 
-    # Print total size
-    print("Total size: ", (figsize_x_px * px) * (figsize_y_px * px))
+    # # Print total size
+    # print("Total size: ", (figsize_x_px * px) * (figsize_y_px * px))
 
-    # Calculate the figure size in inches
-    figsize_x_in = figsize_x_px * px
+    # # Calculate the figure size in inches
+    # figsize_x_in = figsize_x_px * px
 
-    # Calculate the figure size in inches
-    figsize_y_in = figsize_y_px * px
+    # # Calculate the figure size in inches
+    # figsize_y_in = figsize_y_px * px
 
     # Set up the wspace
     # set the nrows depending on the len of the variables
@@ -896,16 +896,18 @@ def plot_corr_subplots(
     # Plot these values
     # Set up a single subplot
     fig, axs = plt.subplots(nrows=nrows, ncols=2,
-                            figsize=(figsize_x_in, figsize_y_in),
-                            subplot_kw={"projection": proj})
+                            figsize=(figsize_x, figsize_y), subplot_kw={"projection": proj})
+
+    # Adjust the whitespace
+    fig.subplots_adjust(hspace=0.05, wspace=0.05)
 
     # if axs is a 2d array
     if axs.ndim == 2:
         # Flatten the axs
         axs = axs.flatten()
 
-    # Adjust the space between the subplots
-    plt.subplots_adjust(wspace=w_space, hspace=h_space)
+    # # Adjust the space between the subplots
+    # plt.subplots_adjust(wspace=w_space, hspace=h_space)
     
     # Focus on the euro-atlantic region
     lat1_grid, lat2_grid = lat_bounds[0], lat_bounds[1]
@@ -944,6 +946,16 @@ def plot_corr_subplots(
     # Same for teh corr_var_ts
     corr_var_ts_const = []
 
+
+    # print the fig
+    print("fig: ", fig)
+
+    # create a list of axes
+    axes = []
+
+    # create a cf_list
+    cf_list = []
+
     # loop over the corr_arrays and pval_arrays
     for i, (corr_array, pval_array, variable) in enumerate(zip(corr_arrays, pval_arrays, variables)):
 
@@ -977,35 +989,38 @@ def plot_corr_subplots(
 
     # Include coastlines
     for i, (ax, corr_array, pval_array, variable) in enumerate(zip(axs, corr_arrays_const, pval_arrays_const, variables)):
+        
+        ax = plt.subplot(2, 2, i + 1, projection=proj)
+        
         # Add coastlines
         ax.coastlines()
 
-        # Include the gridlines as dashed lines
-        gl = ax.gridlines(linestyle="--", alpha=0.5, draw_labels=True)
+        # # Include the gridlines as dashed lines
+        # gl = ax.gridlines(linestyle="--", alpha=0.5, draw_labels=True)
 
-        # if i = 0 or i = 2
-        if i == 0:
-            # Set the labels for the gridlines
-            gl.top_labels = False
-            gl.right_labels = False
-            gl.bottom_labels = False
-        elif i == 1:
-            # Set the labels for the gridlines
-            gl.top_labels = False
-            gl.right_labels = False
-            gl.left_labels = False
-            gl.bottom_labels = False
-        elif i == 2:
-            # Set the labels for the gridlines
-            gl.top_labels = False
-            gl.right_labels = False
-        elif i == 3:
-            # Set the labels for the gridlines
-            gl.top_labels = False
-            gl.right_labels = False
-            gl.left_labels = False
-        else:
-            AssertionError("The number of subplots is greater than 4.")
+        # # if i = 0 or i = 2
+        # if i == 0:
+        #     # Set the labels for the gridlines
+        #     gl.top_labels = False
+        #     gl.right_labels = False
+        #     gl.bottom_labels = False
+        # elif i == 1:
+        #     # Set the labels for the gridlines
+        #     gl.top_labels = False
+        #     gl.right_labels = False
+        #     gl.left_labels = False
+        #     gl.bottom_labels = False
+        # elif i == 2:
+        #     # Set the labels for the gridlines
+        #     gl.top_labels = False
+        #     gl.right_labels = False
+        # elif i == 3:
+        #     # Set the labels for the gridlines
+        #     gl.top_labels = False
+        #     gl.right_labels = False
+        #     gl.left_labels = False
+        # else:
+        #     AssertionError("The number of subplots is greater than 4.")
 
         # plot the first contour plot on the first subplot
         cf = ax.contourf(lons, lats, corr_array, clevs, transform=proj, cmap="bwr")
@@ -1025,11 +1040,34 @@ def plot_corr_subplots(
         # pval_array_2 = np.where(np.isnan(pval_array_2), 1, np.nan)
 
         # Plot the p-values
-        ax.contourf(lons, lats, pval_array, hatches=["."], alpha=0.0, transform=proj)
+        ax.contourf(lons, lats, pval_array, hatches=[".."], alpha=0.0, transform=proj)
+
+        # append the axes to the list
+        axes.append(ax)
+
+        # append the contourf to the list
+        cf_list.append(cf)
+
+    # print fig
+    print("fig: ", fig)
+    # print cf
+    print("cf: ", cf)
+
+    # print axes
+    print("axs: ", axs)
+
+    # print the type of axs
+    print("type(axs): ", type(axs))
+
+    # print the type of axes
+    print("type(axes): ", type(axes))
+
+    # pritn the type of cflist
+    print("type(cf_list): ", type(cf_list))
 
     # Set up the colorbar
     # To be used for both subplots
-    cbar = plt.colorbar(cf, ax=axs, orientation="horizontal", pad=0.05, shrink=0.6)
+    cbar = fig.colorbar(cf_list[0], ax=axes, orientation="horizontal", pad=0.05, shrink=0.8)
 
     # set the ticks
     # ticks = np.arange(-0.8, 0.9, 0.2)
@@ -1048,7 +1086,7 @@ def plot_corr_subplots(
             plot_gridbox, list
         ), "The plot_gridbox must be a list of gridboxes."
         # Loop over the gridboxes
-        for i, (gridbox, ax, cv_ts, label, variable) in enumerate(zip(plot_gridbox, axs, corr_var_ts_const, fig_labels, variables)):
+        for i, (gridbox, ax, cv_ts, label, variable) in enumerate(zip(plot_gridbox, axes, corr_var_ts_const, fig_labels, variables)):
             # Extract the lons and lats
             lon1, lon2 = gridbox["lon1"], gridbox["lon2"]
             lat1, lat2 = gridbox["lat1"], gridbox["lat2"]
@@ -1141,7 +1179,7 @@ def plot_corr_subplots(
     fname = f"{variables_str}_nao_corr_plot_{current_time}.pdf"
 
     # Save the plot
-    plt.savefig(os.path.join(plot_dir, fname), dpi=save_dpi)
+    plt.savefig(os.path.join(plot_dir, fname), dpi=save_dpi, bbox_inches="tight")
 
     # Render the plot
     plt.show()
