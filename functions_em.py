@@ -1639,6 +1639,7 @@ def plot_scatter(
     do_detrend_predictand: bool = False,
     show_eqn_r_p: bool = False,
     fontsize: int = 14,
+    fix_predictor_trendline: bool = False,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
 ):
     """
@@ -1688,6 +1689,9 @@ def plot_scatter(
         The fontsize for the plot.
         default is 14
 
+    fix_predictor_trendline: bool
+        Whether to fix the trendline for the predictor variable.
+
     save_dir: str
         The directory to save the plot in.
         default is "/gws/nopw/j04/canari/users/benhutch/plots"
@@ -1722,6 +1726,27 @@ def plot_scatter(
     if predictand_var_name in ["pr", "var228"]:
         # Convert obs to mm day-1
         predictand = predictand * 1000
+
+    # if fix_predictor_trendline is True
+    if fix_predictor_trendline is True:
+        print("Fixing the trendline to the predictor variable")
+
+        # fit a linear model to the predictand variable
+        predictand_model = np.polyfit(
+            df.index,
+            predictand,
+            1,
+        )
+        predictand_trend = np.polyval(predictand_model, df.index)
+
+        # Detrend the predictor variable
+        detrended_predictor_col = signal.detrend(predictor)
+
+        # Add the trend back to the detrended predictor variable
+        reconstructed_predictor_col = detrended_predictor_col + predictand_trend
+
+        # Now predictor_col should have the trend added back correctly
+        predictor = reconstructed_predictor_col
 
     # Plot the scatter plot
     ax.scatter(predictor, predictand, color="k")
@@ -4378,6 +4403,7 @@ def plot_time_series(
     manual_ylims: list = None,
     calc_rmse: bool = False,
     include_trendline: bool = False,
+    fix_predictor_trendline: bool = False,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ) -> None:
     """
@@ -4449,6 +4475,9 @@ def plot_time_series(
     include_trendline: bool
         Whether to include a trendline on the plot.
 
+    fix_predictor_trendline: bool
+        Whether to fix the trendline to the predictor variable.
+
     save_dir: str
         The directory to save the plots.
 
@@ -4504,6 +4533,27 @@ def plot_time_series(
         # df[f"{predictand_col}"] = -df[f"{predictand_col}"]
         predictand_col = -predictand_col
 
+    # if fix_predictor_trendline is True
+    if fix_predictor_trendline is True:
+        print("Fixing the trendline to the predictor variable")
+
+        # fit a linear model to the predictand variable
+        predictand_model = np.polyfit(
+            df.index,
+            predictand_col,
+            1,
+        )
+        predictand_trend = np.polyval(predictand_model, df.index)
+
+        # Detrend the predictor variable
+        detrended_predictor_col = signal.detrend(predictor_col)
+
+        # Add the trend back to the detrended predictor variable
+        reconstructed_predictor_col = detrended_predictor_col + predictand_trend
+
+        # Now predictor_col should have the trend added back correctly
+        predictor_col = reconstructed_predictor_col
+
     # Calculate the correlation coefficients
     corr, p_val = pearsonr(predictor_col, predictand_col)
 
@@ -4525,11 +4575,13 @@ def plot_time_series(
         if use_col_x is not None:
             ax.plot(df[use_col_x], predictand_col, color=predictand_color)
         else:
+            print("plotting predictand col")
             ax.plot(df.index, predictand_col, color=predictand_color)
 
     if use_col_x is not None:
         ax.plot(df[use_col_x], df[f"{predictor_col}"], color=predictor_color)
     else:
+        print("plotting predictor col")
         ax.plot(df.index, predictor_col, color=predictor_color)
 
     # if twin_axes is True
