@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from cartopy.mpl.gridliner import (LongitudeFormatter, LatitudeFormatter, LatitudeLocator)
+from cartopy.mpl.gridliner import LongitudeFormatter, LatitudeFormatter, LatitudeLocator
 import iris
 import xarray as xr
 from tqdm import tqdm
@@ -283,8 +283,7 @@ def calc_nao_spatial_corr(
     # If level is not 0
     if level != 0:
         # Extract the level
-        corr_var_field = corr_var_field.extract(iris.Constraint(air_pressure
-                                                                =level))
+        corr_var_field = corr_var_field.extract(iris.Constraint(air_pressure=level))
 
     # print the dimensions of the corr_var_field
     print("corr_var_field.dims: ", corr_var_field)
@@ -774,6 +773,7 @@ def plot_corr(
     # Return none
     return None
 
+
 # PLot corr subplots function
 def plot_corr_subplots(
     corr_arrays: List[np.ndarray],
@@ -875,7 +875,7 @@ def plot_corr_subplots(
 
     # # print the px
     # print("px: ", px)
-    
+
     # Calculate the figure size
     # print("figsize_x_px * px: ", figsize_x_px * px)
     # print("figsize_y_px * px: ", figsize_y_px * px)
@@ -895,8 +895,12 @@ def plot_corr_subplots(
 
     # Plot these values
     # Set up a single subplot
-    fig, axs = plt.subplots(nrows=nrows, ncols=2,
-                            figsize=(figsize_x, figsize_y), subplot_kw={"projection": proj})
+    fig, axs = plt.subplots(
+        nrows=nrows,
+        ncols=2,
+        figsize=(figsize_x, figsize_y),
+        subplot_kw={"projection": proj},
+    )
 
     # Adjust the whitespace
     fig.subplots_adjust(hspace=0.05, wspace=0.05)
@@ -908,7 +912,7 @@ def plot_corr_subplots(
 
     # # Adjust the space between the subplots
     # plt.subplots_adjust(wspace=w_space, hspace=h_space)
-    
+
     # Focus on the euro-atlantic region
     lat1_grid, lat2_grid = lat_bounds[0], lat_bounds[1]
     lon1_grid, lon2_grid = lon_bounds[0], lon_bounds[1]
@@ -946,7 +950,6 @@ def plot_corr_subplots(
     # Same for teh corr_var_ts
     corr_var_ts_const = []
 
-
     # print the fig
     print("fig: ", fig)
 
@@ -957,13 +960,19 @@ def plot_corr_subplots(
     cf_list = []
 
     # loop over the corr_arrays and pval_arrays
-    for i, (corr_array, pval_array, variable) in enumerate(zip(corr_arrays, pval_arrays, variables)):
+    for i, (corr_array, pval_array, variable) in enumerate(
+        zip(corr_arrays, pval_arrays, variables)
+    ):
 
         # Constrain the corr_array to the grid
-        corr_array_const = corr_array[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+        corr_array_const = corr_array[
+            lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid
+        ]
 
         # Constrain the pval_array to the grid
-        pval_array_const = pval_array[lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid]
+        pval_array_const = pval_array[
+            lat1_idx_grid:lat2_idx_grid, lon1_idx_grid:lon2_idx_grid
+        ]
 
         # Store the arrays in the list
         corr_arrays_const.append(corr_array_const)
@@ -985,13 +994,15 @@ def plot_corr_subplots(
 
     # Set up the contour levels
     # clevs = np.arange(-0.9, 1.0, 0.2)
-    clevs = np.array([-1. , -0.8, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.8, 1.0])
+    clevs = np.array([-1.0, -0.8, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.8, 1.0])
 
     # Include coastlines
-    for i, (ax, corr_array, pval_array, variable) in enumerate(zip(axs, corr_arrays_const, pval_arrays_const, variables)):
-        
+    for i, (ax, corr_array, pval_array, variable) in enumerate(
+        zip(axs, corr_arrays_const, pval_arrays_const, variables)
+    ):
+
         ax = plt.subplot(2, 2, i + 1, projection=proj)
-        
+
         # Add coastlines
         ax.coastlines()
 
@@ -1028,10 +1039,14 @@ def plot_corr_subplots(
         # if any of the p values are greater or less than the significance threshold
         # Set where the p-values are greater or less than
         # the significance threshold to nan
-        pval_array[(pval_array > sig_threshold) & (pval_array < 1 - sig_threshold)] = np.nan
+        pval_array[(pval_array > sig_threshold) & (pval_array < 1 - sig_threshold)] = (
+            np.nan
+        )
 
         # Assert that not all of the values are nan
-        assert not np.all(np.isnan(pval_array)), "All values in the pval_array_1 are nan."
+        assert not np.all(
+            np.isnan(pval_array)
+        ), "All values in the pval_array_1 are nan."
 
         # How can I invert the p_val_arrays here?
         # so that where the values are NaN, these are replaced with ones
@@ -1067,7 +1082,9 @@ def plot_corr_subplots(
 
     # Set up the colorbar
     # To be used for both subplots
-    cbar = fig.colorbar(cf_list[0], ax=axes, orientation="horizontal", pad=0.05, shrink=0.8)
+    cbar = fig.colorbar(
+        cf_list[0], ax=axes, orientation="horizontal", pad=0.05, shrink=0.8
+    )
 
     # set the ticks
     # ticks = np.arange(-0.8, 0.9, 0.2)
@@ -1086,7 +1103,9 @@ def plot_corr_subplots(
             plot_gridbox, list
         ), "The plot_gridbox must be a list of gridboxes."
         # Loop over the gridboxes
-        for i, (gridbox, ax, cv_ts, label, variable) in enumerate(zip(plot_gridbox, axes, corr_var_ts_const, fig_labels, variables)):
+        for i, (gridbox, ax, cv_ts, label, variable) in enumerate(
+            zip(plot_gridbox, axes, corr_var_ts_const, fig_labels, variables)
+        ):
             # Extract the lons and lats
             lon1, lon2 = gridbox["lon1"], gridbox["lon2"]
             lat1, lat2 = gridbox["lat1"], gridbox["lat2"]
@@ -1108,9 +1127,9 @@ def plot_corr_subplots(
             )
 
             # Constrain the corr_var_ts array to the gridbox
-            corr_var_ts_gridbox = cv_ts[
-                :, lat1_idx:lat2_idx, lon1_idx:lon2_idx
-            ].mean(axis=(1, 2))
+            corr_var_ts_gridbox = cv_ts[:, lat1_idx:lat2_idx, lon1_idx:lon2_idx].mean(
+                axis=(1, 2)
+            )
 
             # Calculate the correlation
             corr, pval = pearsonr(nao, corr_var_ts_gridbox)
@@ -1119,10 +1138,7 @@ def plot_corr_subplots(
             ax.text(
                 0.05,
                 0.05,
-                (
-                    f"r = {corr:.2f} "
-                    f"(p = {pval:.2f})"
-                ),
+                (f"r = {corr:.2f} " f"(p = {pval:.2f})"),
                 transform=ax.transAxes,
                 fontsize=fontsize,
                 verticalalignment="bottom",
@@ -1186,6 +1202,7 @@ def plot_corr_subplots(
 
     # Return none
     return None
+
 
 # Define a function to process the data for plotting scatter plots
 def process_data_for_scatter(
@@ -1621,6 +1638,7 @@ def plot_scatter(
     do_detrend_predictor: bool = False,
     do_detrend_predictand: bool = False,
     show_eqn_r_p: bool = False,
+    fontsize: int = 14,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
 ):
     """
@@ -1662,9 +1680,13 @@ def plot_scatter(
 
     do_detrend_predictand: bool
         Whether to detrend the predictand variable.
-    
+
     show_eqn_r_p: bool
         Whether to show the equation, r, and p values on the plot.
+
+    fontsize: int
+        The fontsize for the plot.
+        default is 14
 
     save_dir: str
         The directory to save the plot in.
@@ -1725,27 +1747,25 @@ def plot_scatter(
         ax.text(
             0.05,
             0.95,
-            (
-                f"r = {r_value:.2f} (p = {p_value:.2f})"
-            ),
+            (f"r = {r_value:.2f} (p = {p_value:.2f})"),
             transform=ax.transAxes,
-            fontsize=12,
+            fontsize=fontsize,
             verticalalignment="top",
             horizontalalignment="left",
             bbox=dict(facecolor="white", alpha=0.5),
         )
 
     # Set up the x-axis label
-    ax.set_xlabel(xlabel, color="k", fontsize=14)
+    ax.set_xlabel(xlabel, color="k", fontsize=fontsize)
 
     # Set up the y-axis label
-    ax.set_ylabel(ylabel, color="k", fontsize=14)
+    ax.set_ylabel(ylabel, color="k", fontsize=fontsize)
 
     # Set up the xticks
-    plt.tick_params(axis="x", colors="k")
+    plt.tick_params(axis="x", colors="k", labelsize=fontsize, pad=10)
 
     # Set up the yticks
-    plt.tick_params(axis="y", colors="k")
+    plt.tick_params(axis="y", colors="k", labelsize=fontsize, pad=10)
 
     # include the lable in the bottom right hand corner
     ax.text(
@@ -1753,7 +1773,7 @@ def plot_scatter(
         0.05,
         label,
         transform=ax.transAxes,
-        fontsize=12,
+        fontsize=fontsize,
         verticalalignment="bottom",
         horizontalalignment="right",
         bbox=dict(facecolor="white", alpha=0.5),
@@ -1763,10 +1783,15 @@ def plot_scatter(
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Set up the filename
-    fname = f"{predictor_var_name}_{predictand_var_name}_scatter_plot_{current_time}.pdf"
+    fname = (
+        f"{predictor_var_name}_{predictand_var_name}_scatter_plot_{current_time}.pdf"
+    )
+
+    # set a tight layout
+    plt.tight_layout()
 
     # Save the plot
-    plt.savefig(os.path.join(save_dir, fname), dpi=600)
+    plt.savefig(os.path.join(save_dir, fname), dpi=1000, bbox_inches="tight")
 
     # print the path which the figure has been saved to
     print(f"Figure saved to: {os.path.join(save_dir, fname)}")
@@ -1994,7 +2019,7 @@ def correlate_nao_uread(
     clim_var = xr.open_mfdataset(
         obs_var_data_path,
         combine="by_coords",
-        parallel=True,
+        parallel=False,
         chunks={"time": "auto", "latitude": "auto", "longitude": "auto"},
     )[
         obs_var
@@ -2817,11 +2842,17 @@ def correlate_nao_uread(
             n_flags_obs = len(nuts_mask_obs.attrs["flag_values"])
 
             # Set up the valid years
-            if model_config["forecast_range"] == "2-9" and model_config["method"] != "nao_matched":
+            if (
+                model_config["forecast_range"] == "2-9"
+                and model_config["method"] != "nao_matched"
+            ):
                 valid_years = np.arange(
                     model_config["start_year"] + 5, model_config["end_year"] + 5 + 1
                 )
-            elif model_config["forecast_range"] == "2-9" and model_config["method"] == "nao_matched":
+            elif (
+                model_config["forecast_range"] == "2-9"
+                and model_config["method"] == "nao_matched"
+            ):
                 valid_years = np.arange(
                     model_config["start_year"] + 3 + 5, model_config["end_year"] + 5 + 1
                 )
@@ -3015,7 +3046,9 @@ def correlate_nao_uread(
                 out_sel = out_sel.mean(dim=["lat", "lon"])
 
                 # Add this to the dataframe
-                df_ts_obs[nuts_mask_obs.attrs["flag_meanings"].split(" ")[i]] = out_sel.values
+                df_ts_obs[nuts_mask_obs.attrs["flag_meanings"].split(" ")[i]] = (
+                    out_sel.values
+                )
 
             # Take the central rolling average
             df_ts_obs = (
@@ -3211,7 +3244,9 @@ def correlate_nao_uread(
                     continue
 
                 # Calculate corr between wind power (GW) and wind speed
-                corr, pval = pearsonr(merged_df_ts[col], merged_df_ts[f"{col_iso}_{obs_var}"])
+                corr, pval = pearsonr(
+                    merged_df_ts[col], merged_df_ts[f"{col_iso}_{obs_var}"]
+                )
 
                 # Append to the dataframe
                 model_corr_df_to_append = pd.DataFrame(
@@ -3388,11 +3423,17 @@ def correlate_nao_uread(
             df_ts_obs = pd.DataFrame({"time": clim_var_anomaly.time.values})
 
             # Set up the valid years
-            if model_config["forecast_range"] == "2-9" and model_config["method"] != "nao_matched":
+            if (
+                model_config["forecast_range"] == "2-9"
+                and model_config["method"] != "nao_matched"
+            ):
                 valid_years = np.arange(
                     model_config["start_year"] + 5, model_config["end_year"] + 5 + 1
                 )
-            elif model_config["forecast_range"] == "2-9" and model_config["method"] == "nao_matched":
+            elif (
+                model_config["forecast_range"] == "2-9"
+                and model_config["method"] == "nao_matched"
+            ):
                 valid_years = np.arange(
                     model_config["start_year"] + 3 + 5, model_config["end_year"] + 5 + 1
                 )
@@ -3558,7 +3599,9 @@ def correlate_nao_uread(
                 out_sel = out_sel.mean(dim=["lat", "lon"])
 
                 # Add this to the dataframe
-                df_ts_obs[nuts_mask_obs.attrs["flag_meanings"].split(" ")[i]] = out_sel.values
+                df_ts_obs[nuts_mask_obs.attrs["flag_meanings"].split(" ")[i]] = (
+                    out_sel.values
+                )
 
             # Take the central rolling average
             df_ts_obs = (
@@ -3713,7 +3756,11 @@ def correlate_nao_uread(
                 if merged_df_ts[col].isnull().values.any():
                     # Set up the df to be appended
                     corr_df_to_append = pd.DataFrame(
-                        {"region": [col_iso], "correlation": [np.nan], "p-value": [np.nan]}
+                        {
+                            "region": [col_iso],
+                            "correlation": [np.nan],
+                            "p-value": [np.nan],
+                        }
                     )
 
                     # Append to the dataframe
@@ -3725,7 +3772,9 @@ def correlate_nao_uread(
                     continue
 
                 # Calculate corr between wind power (GW) and wind speed
-                corr, pval = pearsonr(merged_df_ts[col], merged_df_ts[f"{col_iso}_{obs_var}"])
+                corr, pval = pearsonr(
+                    merged_df_ts[col], merged_df_ts[f"{col_iso}_{obs_var}"]
+                )
 
                 # Append to the dataframe
                 corr_df_to_append = pd.DataFrame(
@@ -3738,7 +3787,7 @@ def correlate_nao_uread(
                 )
 
             # Return the dataframes
-            return merged_df, corr_df, shapefile, merged_df_ts, model_corr_df      
+            return merged_df, corr_df, shapefile, merged_df_ts, model_corr_df
 
         elif use_model_data is False:
             print("Averaging over specified gridbox")
@@ -4124,7 +4173,7 @@ def calc_model_nao_gridbox_var_corr(
     clim_var = xr.open_mfdataset(
         obs_var_data_path,
         combine="by_coords",
-        parallel=True,
+        parallel=False,
         chunks={"time": "auto", "latitude": "auto", "longitude": "auto"},
     )[obs_var]
 
@@ -4278,9 +4327,7 @@ def plot_calib_corr(
     ax.set_ylabel(f"{ylabel}")
 
     # Calculate the correlation coefficients
-    corr, p_val = pearsonr(
-        df["calibrated_model_nao_mean"], df[f"{predictand_var}"]
-    )
+    corr, p_val = pearsonr(df["calibrated_model_nao_mean"], df[f"{predictand_var}"])
 
     # Include a textbox in the top left hand corner with the corr and p values
     plt.text(
@@ -4307,6 +4354,7 @@ def plot_calib_corr(
 
     return None
 
+
 # Define a function for plotting the time series
 def plot_time_series(
     df: pd.DataFrame,
@@ -4329,6 +4377,7 @@ def plot_time_series(
     inverse_predictand: bool = False,
     manual_ylims: list = None,
     calc_rmse: bool = False,
+    include_trendline: bool = False,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
 ) -> None:
     """
@@ -4372,7 +4421,7 @@ def plot_time_series(
 
     title: str
         The title of the plot.
-    
+
     label: str
         The label for the plot. E.g. a, b, c, d etc.
 
@@ -4390,12 +4439,15 @@ def plot_time_series(
 
     inverse_predictand: bool
         Whether to invert the predictand variable.
-        
+
     manual_ylims: list
         The manual y limits for the plot.
 
     calc_rmse: bool
         Whether to calculate the RMSE.
+
+    include_trendline: bool
+        Whether to include a trendline on the plot.
 
     save_dir: str
         The directory to save the plots.
@@ -4483,16 +4535,54 @@ def plot_time_series(
     # if twin_axes is True
     if twin_axes is True:
         # Plot the y label
-        ax.set_ylabel(ylabel, color="b")
+        ax.set_ylabel(ylabel, color="b", fontsize=fontsize)
 
         # set the yticks
-        ax.tick_params("y", colors="b")
+        ax.tick_params("y", colors="b", labelsize=fontsize)
     else:
         # Set the ylabel
-        ax.set_ylabel(ylabel)
+        ax.set_ylabel(ylabel, fontsize=fontsize)
+
+    # if include_trendline is True
+    if include_trendline is True:
+        print("Including trendline")
+
+        # fit a linear model to the predictor variable
+        predictor_model = np.polyfit(
+            df.index,
+            predictor_col,
+            1,
+        )
+        predictor_trend = np.polyval(predictor_model, df.index)
+
+        # fit a linear model to the predictand variable
+        predictand_model = np.polyfit(
+            df.index,
+            predictand_col,
+            1,
+        )
+        predictand_trend = np.polyval(predictand_model, df.index)
+
+        # plot a trendline for the predictor variable
+        ax.plot(
+            df.index,
+            predictor_trend,
+            color=predictor_color,
+            linestyle="--",
+            label="Trendline",
+        )
+
+        # plot a trendline for the predictand variable
+        ax.plot(
+            df.index,
+            predictand_trend,
+            color=predictand_color,
+            linestyle="--",
+            label="Trendline",
+        )
 
     # Set up the x-axis label
-    ax.set_xlabel("Centre of 8-year window")
+    ax.set_xlabel("Centre of 8-year window", fontsize=fontsize)
 
     # Include a horixzontal black dashed line at y=0
     plt.axhline(0, color="black", linestyle="--")
@@ -4501,10 +4591,7 @@ def plot_time_series(
     plt.text(
         0.05,
         0.95,
-        (
-            f"ACC = {corr:.2f} "
-            f"(P = {p_val:.2f})"
-        ),
+        (f"ACC = {corr:.2f} " f"(P = {p_val:.2f})"),
         transform=plt.gca().transAxes,
         fontsize=fontsize,
         verticalalignment="top",
@@ -4527,7 +4614,10 @@ def plot_time_series(
         )
 
     # print(p_val)
-        
+
+    # set up tyhe tick params
+    plt.tick_params(axis="both", pad=10, labelsize=fontsize)
+
     # if manual_ylims is not none
     if manual_ylims is not None:
         # Set the ylims
@@ -4536,11 +4626,11 @@ def plot_time_series(
     # If title is not none
     if title is not None:
         # Set the title in bold
-        plt.title(title, fontweight="bold")
+        plt.title(title, fontweight="bold", fontsize=16)
 
     # # Include a legend
     # plt.legend(loc="upper right")
-        
+
     # Save the plot
     # Current time
     now = datetime.now()
@@ -4555,13 +4645,14 @@ def plot_time_series(
     filename = f"{save_dir}{predictor_col_name}_{predictand_col_name}_{date}.pdf"
 
     # Save the plot
-    plt.savefig(filename, dpi=600)
+    plt.savefig(filename, dpi=1000, bbox_inches="tight")
 
-    # Show the plot
-    plt.show()
+    # # Show the plot
+    # plt.show()
 
     # return none
     return None
+
 
 # Write a function to plot with mean
 # state for a variable over Europe
@@ -4580,26 +4671,26 @@ def plot_winter_mean(
     vmax: float = None,
 ):
     """
-    Function which calculates the mean state for the observed variable over 
+    Function which calculates the mean state for the observed variable over
     Europe.
-    
+
     Args:
-    
+
     obs_var: str
         The observed variable to use for calculating the mean state.
-        
+
     obs_var_data_path: str
         The path to the observed variable data.
-        
+
     months: list
         The months to use for the mean state.
-        
+
     season: str
         The season to use for the mean state.
-        
+
     start_year: int
         The start year for the mean state.
-        
+
     end_year: int
         The end year for the mean state.
 
@@ -4620,7 +4711,7 @@ def plot_winter_mean(
 
     vmax: float
         The maximum value for the colorbar.
-        
+
     Returns:
 
     None
@@ -4678,18 +4769,19 @@ def plot_winter_mean(
     ax.add_feature(cfeature.BORDERS, linewidth=0.5, linestyle="-")
 
     # Plot the mean state
-    ds_mean.plot(ax=ax,
-                transform=ccrs.PlateCarree(),
-                cmap=cmap,
-                vmin=vmin,
-                vmax=vmax,
-                cbar_kwargs={
-                    "label": f"{obs_var} ({units})",
-                    "orientation": "horizontal",
-                    "shrink": 0.8,
-                    "pad": 0.05,
-                    "extend": "both",  # Extend the colorbar at both ends
-                             },
+    ds_mean.plot(
+        ax=ax,
+        transform=ccrs.PlateCarree(),
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        cbar_kwargs={
+            "label": f"{obs_var} ({units})",
+            "orientation": "horizontal",
+            "shrink": 0.8,
+            "pad": 0.05,
+            "extend": "both",  # Extend the colorbar at both ends
+        },
     )
     # Include coastlines
     ax.coastlines()
@@ -4698,14 +4790,21 @@ def plot_winter_mean(
     ax.set_title(f"{obs_var} mean state over Europe")
 
     # Constrain to specific bounds
-    ax.set_extent([gridbox_plot["lon1"], gridbox_plot["lon2"],
-                   gridbox_plot["lat1"], gridbox_plot["lat2"]],
-                  crs=ccrs.PlateCarree())
-    
+    ax.set_extent(
+        [
+            gridbox_plot["lon1"],
+            gridbox_plot["lon2"],
+            gridbox_plot["lat1"],
+            gridbox_plot["lat2"],
+        ],
+        crs=ccrs.PlateCarree(),
+    )
+
     # Show the plot
     plt.show()
 
     return None
+
 
 # Define another function to plot the data from the CLEARHEADS work
 # Either in the EEZ or NUTS domains
@@ -4729,30 +4828,30 @@ def plot_eu_clearheads(
 ):
     """
     Plots the climatology over Europe for the given variable.
-    
+
     Args:
-    
+
     file: str
         The filename for the data.
-        
+
     shp_file: str
         The shapefile to use for plotting.
-        
+
     shp_file_dir: str
         The directory containing the shapefile.
 
     label: str
         The label for the plot.
-        
+
     clearheads_dir: str
         The directory containing the CLEARHEADS data.
-        
+
     figsize_x: int
         The x size of the figure.
-        
+
     figsize_y: int
         The y size of the figure.
-        
+
     trend_level: float
         The level of the trend to plot.
 
@@ -4767,7 +4866,7 @@ def plot_eu_clearheads(
 
     end_year: int
         The end year for the data.
-    
+
     months: list
         The months to plot.
 
@@ -4779,17 +4878,21 @@ def plot_eu_clearheads(
 
     gridbox_plot: dict
         The dictionary containing the gridbox information to plot.
-        
+
     Returns:
-    
+
     None
     """
 
     # asssert that the file exists in the clearheads directory
-    assert os.path.exists(os.path.join(clearheads_dir, file)), f"The file {file} does not exist."
+    assert os.path.exists(
+        os.path.join(clearheads_dir, file)
+    ), f"The file {file} does not exist."
 
     # assert that the shapefile exists
-    assert os.path.exists(os.path.join(shp_file_dir, shp_file)), f"The shapefile {shp_file} does not exist."
+    assert os.path.exists(
+        os.path.join(shp_file_dir, shp_file)
+    ), f"The shapefile {shp_file} does not exist."
 
     # Load teh data
     ds = xr.open_dataset(os.path.join(clearheads_dir, file))
@@ -4890,22 +4993,29 @@ def plot_eu_clearheads(
         legend=True,
         cmap=cmap,
         legend_kwds={
-        "label": label,
-        "orientation": "horizontal",
-        "shrink": 0.8,
-        "pad": 0.01,
-    },
+            "label": label,
+            "orientation": "horizontal",
+            "shrink": 0.8,
+            "pad": 0.01,
+        },
     )
 
     # add the coastlines
     ax.coastlines()
 
     # constrain the plot to Europe
-    ax.set_extent([gridbox_plot["lon1"], gridbox_plot["lon2"],
-                   gridbox_plot["lat1"], gridbox_plot["lat2"]],
-                  crs=ccrs.PlateCarree())
+    ax.set_extent(
+        [
+            gridbox_plot["lon1"],
+            gridbox_plot["lon2"],
+            gridbox_plot["lat1"],
+            gridbox_plot["lat2"],
+        ],
+        crs=ccrs.PlateCarree(),
+    )
 
     return None
+
 
 # Define a function for aggregating correlations for multiple different
 # observed predictors
@@ -4933,49 +5043,49 @@ def aggregate_obs_correlations(
     """
     Function which aggregates the correlations for multiple observed predictors using the correlate_nao_uread function and pandas.
     The output is saved to a csv file.
-    
+
     Args:
-    
+
     uread_fname: str
         The filename for the UREAD data.
-        
+
     shp_fname: str
         The filename for the shapefile.
-        
+
     shp_fpath: str
         The filepath for the shapefile.
-        
+
     obs_vars: list
         The list of observed variables to use.
-        
+
     obs_var_data_paths: list
         The list of observed variable data paths.
-        
+
     obs_var_levels: list
         The list of observed variable levels.
 
     uread_fpath: str
         The filepath for the UREAD data.
-        
+
     nao_n_grid: dict
         The dictionary containing the gridbox information for the NAO North.
         Default is dicts.iceland_grid_corrected.
-        
+
     nao_s_grid: dict
         The dictionary containing the gridbox information for the NAO South.
         Default is dicts.azores_grid_corrected.
-        
+
     delta_p_n_grid: dict
         The dictionary containing the gridbox information for the Delta P North.
         Default is dicts.uk_n_box_corrected.
-        
+
     delta_p_s_grid: dict
         The dictionary containing the gridbox information for the Delta P South.
         Default is dicts.uk_s_box_corrected.
-        
+
     save_df_dir: str
         The directory to save the dataframe to.
-        
+
     save_fname: str
         The filename to save the dataframe to.
 
@@ -4989,13 +5099,19 @@ def aggregate_obs_correlations(
     """
 
     # Assert that the shapefile exists
-    assert os.path.exists(os.path.join(shp_fpath, shp_fname)), f"The shapefile {shp_fname} does not exist."
+    assert os.path.exists(
+        os.path.join(shp_fpath, shp_fname)
+    ), f"The shapefile {shp_fname} does not exist."
 
     # Assert that the uread file exists
-    assert os.path.exists(os.path.join(uread_fpath, uread_fname)), f"The UREAD file {uread_fname} does not exist."
+    assert os.path.exists(
+        os.path.join(uread_fpath, uread_fname)
+    ), f"The UREAD file {uread_fname} does not exist."
 
     # assert that obs_var_levels is a list containing ints
-    assert all(isinstance(x, int) for x in obs_var_levels), "The obs_var_levels list must contain integers."
+    assert all(
+        isinstance(x, int) for x in obs_var_levels
+    ), "The obs_var_levels list must contain integers."
 
     # Calculate the correlations for the NAO
     _, corr_df_nao = correlate_nao_uread(
@@ -5034,7 +5150,7 @@ def aggregate_obs_correlations(
 
     # Loop over the observed variables, paths and levels using zip
     for var, path, level in zip(obs_vars, obs_var_data_paths, obs_var_levels):
-        
+
         # if level is not zero
         if level != 0:
             # add the level to the var_name
@@ -5054,7 +5170,10 @@ def aggregate_obs_correlations(
             # append _var_name to the correlation and p-value columns
             # using rename
             corr_df = corr_df.rename(
-                columns={"correlation": f"correlation_{var_name}", "p-value": f"p-value_{var_name}"}
+                columns={
+                    "correlation": f"correlation_{var_name}",
+                    "p-value": f"p-value_{var_name}",
+                }
             )
         else:
             # Calculate the correlations
@@ -5070,7 +5189,10 @@ def aggregate_obs_correlations(
             # append _var_name to the correlation and p-value columns
             # using rename
             corr_df = corr_df.rename(
-                columns={"correlation": f"correlation_{var}", "p-value": f"p-value_{var}"}
+                columns={
+                    "correlation": f"correlation_{var}",
+                    "p-value": f"p-value_{var}",
+                }
             )
 
         # Set the index as the region column
@@ -5092,7 +5214,8 @@ def aggregate_obs_correlations(
 
     return corr_df_combined
 
-# Write a function which calculations the correlations 
+
+# Write a function which calculations the correlations
 # between the NAO and observed ERA5 data
 # averaged down to NUTS0 level
 def calc_nao_region_corr(
@@ -5115,9 +5238,9 @@ def calc_nao_region_corr(
     predictand_var_level: int = 0,
 ) -> pd.DataFrame:
     """
-    Function which calculates the correlations between the NAO and 
+    Function which calculates the correlations between the NAO and
     observed ERA5 data averaged down to NUTS0 level.
-    
+
     Args:
 
     shp_fname: str
@@ -5178,7 +5301,9 @@ def calc_nao_region_corr(
     """
 
     # assert that the shapefile exists
-    assert os.path.exists(os.path.join(shp_fpath, shp_fname)), f"The shapefile {shp_fname} does not exist."
+    assert os.path.exists(
+        os.path.join(shp_fpath, shp_fname)
+    ), f"The shapefile {shp_fname} does not exist."
 
     # Load in the ERA5 data for psl for the NAO
     psl_field = xr.open_mfdataset(
@@ -5282,8 +5407,7 @@ def calc_nao_region_corr(
     rolling_window = (ff_year - lf_year) + 1  # e.g. (9-2) + 1 = 8
 
     # Take the central rolling average
-    nao_df = nao_df.set_index("time").rolling(window=rolling_window,
-                                              center=True).mean()
+    nao_df = nao_df.set_index("time").rolling(window=rolling_window, center=True).mean()
 
     # drop the NaN values
     nao_df = nao_df.dropna()
@@ -5315,16 +5439,17 @@ def calc_nao_region_corr(
             shapefile,
             names="NUTS_NAME",
             abbrevs="NUTS_ID",
-            numbers="numbers", 
+            numbers="numbers",
         )
 
         # Subset the clim var data
         clim_var_anomaly_subset = clim_var_anomaly.isel(time=0)
 
         # Extract the lat and lon values
-        nuts_mask = nuts_mask_poly.mask(clim_var_anomaly_subset["lon"],
-                                        clim_var_anomaly_subset["lat"])
-        
+        nuts_mask = nuts_mask_poly.mask(
+            clim_var_anomaly_subset["lon"], clim_var_anomaly_subset["lat"]
+        )
+
         # create a data frame for the time series of observed data in each rgeion
         df_ts = pd.DataFrame({"time": clim_var_anomaly.time.values})
 
@@ -5393,15 +5518,18 @@ def calc_nao_region_corr(
             df_ts[nuts_mask.attrs["flag_meanings"].split(" ")[i]] = out_sel.values
 
         # Take the central rolling average
-        df_ts = df_ts.set_index("time").rolling(window=rolling_window,
-                                                center=True).mean()
-        
+        df_ts = (
+            df_ts.set_index("time").rolling(window=rolling_window, center=True).mean()
+        )
+
         # Modify each of the column names to include "_si10"
         # using a list comprehension
-        df_ts.columns = [f"{col}_{predictand_var_name}" for col in df_ts.columns if col != "time"]
+        df_ts.columns = [
+            f"{col}_{predictand_var_name}" for col in df_ts.columns if col != "time"
+        ]
 
         # Drop the first rolling window/2 values
-        df_ts = df_ts.iloc[int(rolling_window / 2):]
+        df_ts = df_ts.iloc[int(rolling_window / 2) :]
 
         # Join the dataframes
         merged_df = df_ts.join(nao_df, how="inner")
@@ -5409,12 +5537,17 @@ def calc_nao_region_corr(
         # print the head of the merged df
         print(merged_df.head())
 
-
         # Create a new dataframe for the correlations
         corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
 
         # find the length of merged df columns
-        n_cols = len([col for col in merged_df.columns if "obs_nao" not in col and "time" not in col])
+        n_cols = len(
+            [
+                col
+                for col in merged_df.columns
+                if "obs_nao" not in col and "time" not in col
+            ]
+        )
 
         # Loop over the columns in the merged dataframe
         for i in tqdm(range(n_cols)):
@@ -5431,7 +5564,7 @@ def calc_nao_region_corr(
             # if merged_df[f"{col}_{predictand_var_name}"] contains nan values
             if merged_df[col].isnull().values.any():
                 print(f"Column {col} contains NaN values.")
-                
+
                 # Set up the row results
                 corr_df_to_append = pd.DataFrame(
                     {"region": [iso_code], "correlation": [np.nan], "p-value": [np.nan]}
@@ -5443,9 +5576,7 @@ def calc_nao_region_corr(
                 continue
 
             # Calculate the correlation between NAO and the observed data
-            corr, p_val = pearsonr(
-                merged_df["obs_nao"].values, merged_df[col].values
-            )
+            corr, p_val = pearsonr(merged_df["obs_nao"].values, merged_df[col].values)
 
             # Set up the row results
             corr_df_to_append = pd.DataFrame(
@@ -5519,10 +5650,14 @@ def merge_dfs_by_region(
 
     # assert that the files exist
     for file in filenames:
-        assert os.path.exists(os.path.join(dfs_dir, file)), f"The file {file} does not exist."
+        assert os.path.exists(
+            os.path.join(dfs_dir, file)
+        ), f"The file {file} does not exist."
 
     # assert that the lengths of filenames and prefixes are the same
-    assert len(filenames) == len(prefixes), "The lengths of filenames and prefixes must be the same."
+    assert len(filenames) == len(
+        prefixes
+    ), "The lengths of filenames and prefixes must be the same."
 
     # Load the dataframes
     for i, file in tqdm(enumerate(filenames)):
@@ -5556,6 +5691,7 @@ def merge_dfs_by_region(
     base_df.to_csv(save_path)
 
     return base_df
+
 
 # Write a function to calculate the correlations
 # between model data and obs data
@@ -5616,14 +5752,20 @@ def aggregate_model_correlations(
     """
 
     # Assert that the shapefile exists
-    assert os.path.exists(os.path.join(shp_fpath, shp_fname)), f"The shapefile {shp_fname} does not exist."
+    assert os.path.exists(
+        os.path.join(shp_fpath, shp_fname)
+    ), f"The shapefile {shp_fname} does not exist."
 
     # assert that obs_var_levels is a list containing ints
-    assert all(isinstance(x, int) for x in obs_var_levels), "The obs_var_levels list must contain integers."
+    assert all(
+        isinstance(x, int) for x in obs_var_levels
+    ), "The obs_var_levels list must contain integers."
 
     # Loop over the model configurations
-    for var, path, level, config in zip(obs_vars, obs_var_data_paths, obs_var_levels, model_configs):
-        
+    for var, path, level, config in zip(
+        obs_vars, obs_var_data_paths, obs_var_levels, model_configs
+    ):
+
         # if level is not zero
         if level != 0:
             # add the level to the var_name
@@ -5646,7 +5788,10 @@ def aggregate_model_correlations(
             # append _var_name to the correlation and p-value columns
             # using rename
             corr_df = corr_df.rename(
-                columns={"correlation": f"correlation_{var_name}", "p-value": f"p-value_{var_name}"}
+                columns={
+                    "correlation": f"correlation_{var_name}",
+                    "p-value": f"p-value_{var_name}",
+                }
             )
 
             # Limit the region column to the first two characters
@@ -5668,7 +5813,10 @@ def aggregate_model_correlations(
             # append _var_name to the correlation and p-value columns
             # using rename
             corr_df = corr_df.rename(
-                columns={"correlation": f"correlation_{var}", "p-value": f"p-value_{var}"}
+                columns={
+                    "correlation": f"correlation_{var}",
+                    "p-value": f"p-value_{var}",
+                }
             )
 
             # Limit the region column to the first two characters
@@ -5689,6 +5837,7 @@ def aggregate_model_correlations(
     corr_df.to_csv(save_path)
 
     return corr_df
+
 
 # obs_vars = ["si10", "var131"]
 # obs_var_data_paths = [dicts.regrid_file, dicts.obs_u_850_regrid]
@@ -5729,6 +5878,7 @@ def aggregate_model_correlations(
 #     "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/",
 #     "/gws/nopw/j04/canari/users/benhutch/alternate-lag-processed-data/test-sfcWind",
 # ]
+
 
 # Function to calculate the correlations
 def calculate_correlation_and_pvalue(
@@ -5775,7 +5925,9 @@ def calculate_correlation_and_pvalue(
             corr_var_anom_values_lat_lon = corr_var_ts[:, lat, lon]
 
             # Replace NaNs with 0
-            corr_var_anom_values_lat_lon = np.nan_to_num(corr_var_anom_values_lat_lon, nan=0)
+            corr_var_anom_values_lat_lon = np.nan_to_num(
+                corr_var_anom_values_lat_lon, nan=0
+            )
 
             # Calculate the correlation and p-value
             corr, pval = pearsonr(nao, corr_var_anom_values_lat_lon)
