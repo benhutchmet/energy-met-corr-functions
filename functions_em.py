@@ -27,6 +27,7 @@ from datetime import datetime
 import geopandas as gpd
 import regionmask
 from typing import List
+import random
 
 sys.path.append("/home/users/benhutch/energy-met-corr/")
 # Import local modules
@@ -37,6 +38,9 @@ sys.path.append("/home/users/benhutch/skill-maps/python/")
 import paper1_plots_functions as p1p_funcs
 import nao_alt_lag_functions as nal_funcs
 import functions as fnc
+
+sys.path.append("/home/users/benhutch/skill-maps/rose-suite-matching")
+import nao_matching_seasons as nao_match_fnc
 
 
 # Define a function to form the dataframe for the offshore wind farm data
@@ -895,20 +899,16 @@ def plot_corr_subplots(
 
     # Plot these values
     # Set up a single subplot
-    fig, axs = plt.subplots(
-        nrows=nrows,
-        ncols=2,
-        figsize=(figsize_x, figsize_y),
-        subplot_kw={"projection": proj},
-    )
+    # Set up the figure
+    fig = plt.figure(figsize=(figsize_x, figsize_y))
 
     # Adjust the whitespace
-    fig.subplots_adjust(hspace=0.05, wspace=0.05)
+    # fig.subplots_adjust(hspace=0.05, wspace=0.05)
 
-    # if axs is a 2d array
-    if axs.ndim == 2:
-        # Flatten the axs
-        axs = axs.flatten()
+    # # if axs is a 2d array
+    # if axs.ndim == 2:
+    #     # Flatten the axs
+    #     axs = axs.flatten()
 
     # # Adjust the space between the subplots
     # plt.subplots_adjust(wspace=w_space, hspace=h_space)
@@ -997,8 +997,8 @@ def plot_corr_subplots(
     clevs = np.array([-1.0, -0.8, -0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.8, 1.0])
 
     # Include coastlines
-    for i, (ax, corr_array, pval_array, variable) in enumerate(
-        zip(axs, corr_arrays_const, pval_arrays_const, variables)
+    for i, (corr_array, pval_array, variable) in enumerate(
+        zip(corr_arrays_const, pval_arrays_const, variables)
     ):
 
         ax = plt.subplot(2, 2, i + 1, projection=proj)
@@ -1068,17 +1068,19 @@ def plot_corr_subplots(
     # print cf
     print("cf: ", cf)
 
-    # print axes
-    print("axs: ", axs)
+    # # print axes
+    # print("axs: ", axs)
 
-    # print the type of axs
-    print("type(axs): ", type(axs))
+    # # print the type of axs
+    # print("type(axs): ", type(axs))
 
-    # print the type of axes
-    print("type(axes): ", type(axes))
+    # # print the type of axes
+    # print("type(axes): ", type(axes))
 
     # pritn the type of cflist
     print("type(cf_list): ", type(cf_list))
+
+    fig.subplots_adjust(hspace=0.05, wspace=0.05)
 
     # Set up the colorbar
     # To be used for both subplots
@@ -1131,8 +1133,87 @@ def plot_corr_subplots(
                 axis=(1, 2)
             )
 
-            # Calculate the correlation
-            corr, pval = pearsonr(nao, corr_var_ts_gridbox)
+            # set up the n_times
+            n_times = len(corr_var_ts_gridbox)
+
+            # assert that the length of the nao and the corr_var_ts_gridbox are the same
+            assert len(nao) == n_times, "The length of the NAO and the variable to correlate are not the same."
+
+            # Set up the block length
+            block_length = 5
+
+            # Set up the iboot
+            nboot = 1000
+
+            # set up the arrays
+            r1_arr = np.empty([nboot])
+
+            # Set up the number of blocks to be used
+            n_blocks = int(n_times / block_length)
+
+            # if the nblocks * block_length is less than n_times
+            # add one to the number of blocks
+            if n_blocks * block_length < n_times:
+                n_blocks = n_blocks + 1
+
+            # set up the indexes
+            # for the time - time needs to be the same for all forecasts and obs
+            index_time = range(n_times - block_length + 1)
+
+            # loop over the bootstraps
+            for iboot in tqdm(np.arange(nboot)):
+                if iboot == 0:
+                    index_time_this = range(0, n_times, block_length)
+                else:
+                    index_time_this = np.array(
+                        [random.choice(index_time) for i in range(n_blocks)]
+                    )
+
+                # Create empty arrays to store the nao obs
+                nao_boot = np.zeros([n_times])
+                corr_var_ts_boot = np.zeros([n_times])
+
+                # Set itime to 0
+                itime = 0
+
+                # loop over the time indexes
+                for i_this in index_time_this:
+                    # Individual block index
+                    index_block = np.arange(i_this, i_this + block_length)
+
+                    # If the block index is greater than the number of times, then reduce the block index
+                    index_block[(index_block > n_times - 1)] = (
+                        index_block[(index_block > n_times - 1)] - n_times
+                    )
+
+                    # Select a subset of indices for the block
+                    index_block = index_block[: min(block_length, n_times - itime)]
+
+                    # loop over the block indices
+                    for iblock in index_block:
+                        # Assign the values to the arrays
+                        nao_boot[itime] = nao[iblock]
+                        corr_var_ts_boot[itime] = corr_var_ts_gridbox[iblock]
+
+                        # Increment itime
+                        itime = itime + 1
+
+                # assert that there are non nans in either of the arrays
+                assert not np.isnan(nao_boot).any(), "values in nao_boot are nan."
+                assert not np.isnan(corr_var_ts_boot).any(), "values in corr_var_ts_boot are nan."
+
+                # Calculate the correlation
+                r1_arr[iboot] = pearsonr(nao_boot, corr_var_ts_boot)[0]
+
+            # Set up the corr
+            corr = r1_arr[0]
+
+            count_vals_r1 = np.sum(
+                i < 0.0 for i in r1_arr
+            )  # Count the number of values less than 0
+
+            # Calculate the p-value
+            pval = count_vals_r1 / nboot
 
             # Include the correlation on the plot
             ax.text(
@@ -1171,7 +1252,6 @@ def plot_corr_subplots(
                 verticalalignment="top",
                 horizontalalignment="left",
                 bbox=dict(facecolor="white", alpha=0.6),
-                weight="bold",
             )
     else:
         print("No gridboxes to plot.")
@@ -1640,6 +1720,8 @@ def plot_scatter(
     show_eqn_r_p: bool = False,
     fontsize: int = 14,
     fix_predictor_trendline: bool = False,
+    normalise_anom: bool = False,
+    inverse_predictand: bool = False,
     save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots",
 ):
     """
@@ -1692,6 +1774,12 @@ def plot_scatter(
     fix_predictor_trendline: bool
         Whether to fix the trendline for the predictor variable.
 
+    normalise_anom: bool
+        Whether to normalise the anomalies.
+
+    inverse_predictand: bool
+        Whether to inverse the predictand variable.
+
     save_dir: str
         The directory to save the plot in.
         default is "/gws/nopw/j04/canari/users/benhutch/plots"
@@ -1727,8 +1815,24 @@ def plot_scatter(
         # Convert obs to mm day-1
         predictand = predictand * 1000
 
+    # if inverse predictand is true
+    if inverse_predictand is True:
+        print("Inverting the predictand variable")
+        # Invert the predictand variable
+        predictand = predictand * -1
+
+    # if normalise_anom_predictand is True
+    if normalise_anom is True:
+        print("Normalising the variables")
+        # Normalise the predictand variable
+        predictand = (predictand - predictand.mean()) / predictand.std()
+
+        # Normalise the predictor variable
+        predictor = (predictor - predictor.mean()) / predictor.std()
+
     # if fix_predictor_trendline is True
     if fix_predictor_trendline is True:
+
         print("Fixing the trendline to the predictor variable")
 
         # fit a linear model to the predictand variable
@@ -1753,6 +1857,12 @@ def plot_scatter(
 
     # Set up the line of best fit
     slope, intercept, r_value, p_value, std_err = linregress(predictor, predictand)
+
+    # do the same with pearson r and print the values
+    r, p = pearsonr(predictor, predictand)
+
+    # Print the r and p values
+    print(f"r = {r:.2f}, p = {p:.2f}")
 
     # PLot the line of best fit
     ax.plot(
@@ -2040,25 +2150,48 @@ def correlate_nao_uread(
     # Throw away the NaN values
     df = df.dropna()
 
-    # load in the ERA5 data
-    clim_var = xr.open_mfdataset(
-        obs_var_data_path,
-        combine="by_coords",
-        parallel=False,
-        chunks={"time": "auto", "latitude": "auto", "longitude": "auto"},
-    )[
-        obs_var
-    ]  # for mean sea level pressure
+    if obs_var in ["ua", "va", "var131", "var132"]:
+        print("Loading ERA5 data for upper level wind variables.")
+
+        # assert that level is greater than 0
+        assert level > 0, "The level must be greater than 0."
+
+        # if level is not an int
+        if not isinstance(level, int):
+            # raise an error
+            raise ValueError("The level must be an integer.")
+
+        # read the observations
+        clim_var = fnc.read_obs(
+            variable=obs_var,
+            region="global",
+            forecast_range="2-9",
+            season="ONDJFM",
+            observations_path=obs_var_data_path,
+            start_year=1960,
+            end_year=2023,
+            level=level,
+        )
+    else:
+        # load in the ERA5 data
+        clim_var = xr.open_mfdataset(
+            obs_var_data_path,
+            combine="by_coords",
+            parallel=False,
+            chunks={"time": "auto", "latitude": "auto", "longitude": "auto"},
+        )[
+            obs_var
+        ]  # for mean sea level pressure
 
     # If expver is a variable in the dataset
     if "expver" in clim_var.coords:
         # Combine the first two expver variables
         clim_var = clim_var.sel(expver=1).combine_first(clim_var.sel(expver=5))
 
-    # if level is not 0
-    if level != 0:
-        # Extract the data for the level
-        clim_var = clim_var.sel(plev=level)
+    # # if level is not 0
+    # if level != 0:
+    #     # Extract the data for the level
+    #     clim_var = clim_var.sel(plev=level)
 
     # Constrain obs to ONDJFM
     clim_var = clim_var.sel(time=clim_var.time.dt.month.isin(months))
@@ -2131,7 +2264,7 @@ def correlate_nao_uread(
 
         # Drop the NaN values
         merged_df = merged_df.dropna()
-
+        
         # Create a new dataframe for the correlations
         corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
 
@@ -3835,44 +3968,123 @@ def correlate_nao_uread(
             # Extract the values
             clim_var_values = clim_var_mean.values
 
-            # Create a dataframe for this data
-            clim_var_df = pd.DataFrame(
-                {"time": time_values, f"{obs_var} anomaly mean": clim_var_values}
-            )
+            # if the variable is not in
+            # ["ua", "va", "var131", "var132"]
+            if obs_var not in ["ua", "va", "var131", "var132"]:
+                # Create a dataframe for this data
+                clim_var_df = pd.DataFrame(
+                    {"time": time_values, f"{obs_var} anomaly mean": clim_var_values}
+                )
 
-            # Take the central rolling average
-            clim_var_df = (
-                clim_var_df.set_index("time")
-                .rolling(window=rolling_window, center=centre)
-                .mean()
-            )
+                # Take the central rolling average
+                clim_var_df = (
+                    clim_var_df.set_index("time")
+                    .rolling(window=rolling_window, center=centre)
+                    .mean()
+                )
 
-            # Drop the NaN values
-            clim_var_df = clim_var_df.dropna()
+                # Drop the NaN values
+                clim_var_df = clim_var_df.dropna()
 
-            # Merge the dataframes
-            merged_df = df.join(clim_var_df, how="inner")
+                # print the head of the clim var df
+                print("Head of clim_var_df: ", clim_var_df.head())
+
+                # print the tail of the clim var df
+                print("Tail of clim_var_df: ", clim_var_df.tail())
+
+                # Merge the dataframes
+                merged_df = df.join(clim_var_df, how="inner")
+
+                # print the head of the merged df
+                print("Head of merged_df: ", merged_df.head())
+
+                # print the tail of the merged df
+                print("Tail of merged_df: ", merged_df.tail())
+            else:
+                # Create a dataframe for this data
+                clim_var_df = pd.DataFrame(
+                    {"time": time_values, f"{obs_var} anomaly mean": clim_var_values}
+                )
+
+                # print the head of clim var df
+                print("Head of clim_var_df: ", clim_var_df.head())
+
+                # print the head of the df
+                print("Head of df: ", df.head())
+
+                # print the tail of clim var df
+                print("Tail of clim_var_df: ", clim_var_df.tail())
+
+                # print the tail of the df
+                print("Tail of df: ", df.tail())
+
+                # shift the var131 anomaly mean column down by
+                # three years
+                clim_var_df[f"{obs_var} anomaly mean"] = clim_var_df[
+                    f"{obs_var} anomaly mean"
+                ].shift(3)
+
+                # drop nans
+                clim_var_df = clim_var_df.dropna()
+
+                # # limit to between 1964-01-01 and 2020-01-01
+                # clim_var_df = clim_var_df.loc["1964-01-01":"2020-01-01"]
+
+                # reset the index of df
+                df = df.reset_index()
+
+                # for df rename "time_in_hours_from_first_jan_1950"
+                # to time
+                df = df.rename(
+                    columns={"time_in_hours_from_first_jan_1950": "time"}
+                )
+
+                # set the index as time
+                df = df.set_index("time")
+                clim_var_df = clim_var_df.set_index("time")
+
+                # join the dataframes
+                merged_df = df.join(clim_var_df, how="inner")
+
+            # # print the len of df
+            # print("Length of df: ", len(df))
+
+            # # print the len of clim_var_df
+            # print("Length of clim_var_df: ", len(clim_var_df))
+
+            # # print the head of clim var df
+            # print("Head of clim_var_df: ", clim_var_df.head())
+
+
+            # # print the head of merged df
+            # print("Head of merged_df: ", merged_df.head())
 
             # Drop the NaN values
             merged_df = merged_df.dropna()
 
-            # Create a new dataframe for the correlations
-            corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
+            # print trhe head of the merged_df
+            print("Head of merged_df: ", merged_df.head())
 
-            # Loop over the columns
-            for col in merged_df.columns[:-1]:
-                # Calculate the correlation
-                corr, pval = pearsonr(
-                    merged_df[col], merged_df[f"{obs_var} anomaly mean"]
-                )
+            # set corr_df as none
+            corr_df = None
 
-                # Append to the dataframe
-                corr_df_to_append = pd.DataFrame(
-                    {"region": [col], "correlation": [corr], "p-value": [pval]}
-                )
+            # # Create a new dataframe for the correlations
+            # corr_df = pd.DataFrame(columns=["region", "correlation", "p-value"])
 
-                # Append to the dataframe
-                corr_df = pd.concat([corr_df, corr_df_to_append], ignore_index=True)
+            # # Loop over the columns
+            # for col in merged_df.columns[:-1]:
+            #     # Calculate the correlation
+            #     corr, pval = pearsonr(
+            #         merged_df[col], merged_df[f"{obs_var} anomaly mean"]
+            #     )
+
+            #     # Append to the dataframe
+            #     corr_df_to_append = pd.DataFrame(
+            #         {"region": [col], "correlation": [corr], "p-value": [pval]}
+            #     )
+
+            #     # Append to the dataframe
+            #     corr_df = pd.concat([corr_df, corr_df_to_append], ignore_index=True)
         elif use_model_data is True:
             print(
                 "Extracting the stored gridbox averaged variable data for the specified box"
@@ -4404,7 +4616,18 @@ def plot_time_series(
     calc_rmse: bool = False,
     include_trendline: bool = False,
     fix_predictor_trendline: bool = False,
-    save_dir: str = "/gws/nopw/j04/canari/users/benhutch/plots/",
+    resample_time: bool = False,
+    resample_time_members: bool = False,
+    region: str = "UK",
+    season: str = "ONDJFM",
+    forecast_range: str = "2-9",
+    start_year: str = "1961",
+    end_year: str = "2014",
+    lag: str = "4",
+    variable: str = "tas",
+    alt_lag: str = "nao_matched",
+    region_full: str = "global",
+    save_dir: str = "/home/users/benhutch/energy-met-corr/plots",
 ) -> None:
     """
     Plots the time series for the model NAO and the observed variable.
@@ -4478,6 +4701,12 @@ def plot_time_series(
     fix_predictor_trendline: bool
         Whether to fix the trendline to the predictor variable.
 
+    resample_time: bool
+        Whether to resample the time series.
+
+    resample_time_members: bool
+        Whether to resample the time series for the members.
+
     save_dir: str
         The directory to save the plots.
 
@@ -4487,6 +4716,16 @@ def plot_time_series(
     None
 
     """
+
+    # if resample_time is True, then resample time members must be false
+    if resample_time is True:
+        if resample_time_members is True:
+            raise ValueError("Cannot resample time and time members simultaneously.")
+
+    # if resample_time_members is True
+    if resample_time_members is True:
+        if resample_time is True:
+            raise ValueError("Cannot resample time and time members simultaneously.")
 
     # if do_detrend is true
     if do_detrend_predictor is True:
@@ -4554,8 +4793,217 @@ def plot_time_series(
         # Now predictor_col should have the trend added back correctly
         predictor_col = reconstructed_predictor_col
 
-    # Calculate the correlation coefficients
-    corr, p_val = pearsonr(predictor_col, predictand_col)
+    # Hardcoded for now
+    nboot=1000
+    block_length=5
+
+    # set up the ntimes
+    n_times = len(predictor_col)
+
+    # assert that this is the same length as the predictand col
+    assert len(predictor_col) == len(predictand_col), "The lengths of the predictor and predictand columns are not the same."
+
+    # Set up the number of blocks to be used
+    n_blocks = int(n_times / block_length)
+
+    # if the nblocks * block_length is less than n_times
+    # add one to the number of blocks
+    if n_blocks * block_length < n_times:
+        n_blocks = n_blocks + 1
+
+    # Set up the time index
+    index_time = range(n_times - block_length + 1)
+
+    # print the type of predictorcol
+    print(f"Type of predictor_col: {type(predictor_col)}")
+    print(f"Type of predictand_col: {type(predictand_col)}")
+
+    # extract these from series into arrays
+    predictor_col = predictor_col.values
+    predictand_col = predictand_col.values
+
+    if resample_time is True:
+        print("Resampling the time series for significance testing")
+
+        rval_arr = np.empty([nboot])
+
+        # Loop over the number of bootstraps
+        for iboot in tqdm(np.arange(nboot)):
+            if iboot == 0:
+                index_time_this = range(0, n_times, block_length)
+            else:
+                index_time_this = np.array(
+                    [random.choice(index_time) for i in range(n_blocks)]
+                )
+
+            # Create empty arrays to store the resampled data
+            predictor_boot = np.zeros([n_times])
+            predictand_boot = np.zeros([n_times])
+
+            # Set itime to 0
+            itime = 0
+
+            # loop over the time indexes
+            for i_this in index_time_this:
+                # Individual block index
+                index_block = np.arange(i_this, i_this + block_length)
+
+                # If the block index is greater than the number of times, then reduce the block index
+                index_block[(index_block > n_times - 1)] = (
+                    index_block[(index_block > n_times - 1)] - n_times
+                )
+
+                # Select a subset of indices for the block
+                index_block = index_block[: min(block_length, n_times - itime)]
+
+                # loop over the block indices
+                for iblock in index_block:
+                    # Assign the values to the arrays
+                    predictor_boot[itime] = predictor_col[iblock]
+                    predictand_boot[itime] = predictand_col[iblock]
+
+                    # Increment itime
+                    itime = itime + 1
+
+            # Process the stats
+            rval_arr[iboot], _ = pearsonr(predictor_boot, predictand_boot)
+
+        # Calculate the correlation coefficients
+        corr = rval_arr[0]
+
+        # Count the values 
+        count_values = np.sum(
+            i < 0.0 for i in rval_arr
+        )
+
+        # Quantify the pvalues
+        p_val = count_values / nboot
+    elif resample_time_members is True:
+        print("Resampling the time series and members for significance testing")
+
+        # Save direcoty
+        array_dir = "/home/users/benhutch/energy-met-corr-functions/saved_arrs"
+
+        # Set up the fname
+        fname = f"{region}_{season}_{forecast_range}_{start_year}_{end_year}_{lag}_{variable}_{alt_lag}_{region_full}.npy"
+
+        # form the full path
+        full_path = os.path.join(array_dir, fname)
+
+        # if the full path does not exist, then
+        # raise and error
+        assert os.path.exists(full_path), f"The full path {full_path} does not exist."
+
+        # Load the array
+        fcst_members = np.load(full_path)
+
+        # print the shape of the fcst_members (20, 51)
+        print(f"Shape of fcst_members: {fcst_members.shape}")
+
+        # constrain excluding the final 3 members
+        fcst_members = fcst_members[:, :-3]
+
+        # print the shape of the fcst_members (20, 48)
+        print(f"Shape of fcst_members: {fcst_members.shape}")
+
+        # Set up the n_times
+        n_times = np.shape(fcst_members)[1]
+
+        # print the len of n_times
+        print(f"Length of n_times: {n_times}")
+
+        # print the len of predictand col
+        print(f"Length of predictand col: {len(predictand_col)}")
+
+        # assert that n_times is the same shape as the predictand col
+        assert n_times == len(predictand_col), "The number of times in the forecast members is not the same as the predictand col."
+
+        # set up the nens
+        nens = np.shape(fcst_members)[0]
+
+        rval_arr = np.empty([nboot])
+
+        # Set up the number of blocks to be used
+        n_blocks = int(n_times / block_length)
+
+        # if the nblocks * block_length is less than n_times
+        # add one to the number of blocks
+        if n_blocks * block_length < n_times:
+            n_blocks = n_blocks + 1
+
+        # set up the indexes
+        # for the time - time needs to be the same for all forecasts and obs
+        index_time = range(n_times - block_length + 1)
+
+        # set up the index for the ensemble
+        index_ens = range(nens)
+
+        # loop over the bootstraps
+        for iboot in tqdm(np.arange(nboot)):
+            if iboot == 0:
+                index_time_this = range(0, n_times, block_length)
+                index_ens_this = index_ens
+            else:
+                index_time_this = np.array(
+                    [random.choice(index_time) for i in range(n_blocks)]
+                )
+
+                # ensemble index for tis
+                index_ens_this = np.array([
+                    random.choice(index_ens) for i in index_ens
+                    ]
+                )
+
+            # Create empty arrays to store the nao obs
+            # Create empty arrays to store the resampled data
+            predictor_boot = np.zeros([nens, n_times])
+            predictand_boot = np.zeros([n_times])
+
+            # Set itime to 0
+            itime = 0
+
+            # loop over the time indexes
+            for i_this in index_time_this:
+                # Individual block index
+                index_block = np.arange(i_this, i_this + block_length)
+
+                # If the block index is greater than the number of times, then reduce the block index
+                index_block[(index_block > n_times - 1)] = (
+                    index_block[(index_block > n_times - 1)] - n_times
+                )
+
+                # Select a subset of indices for the block
+                index_block = index_block[: min(block_length, n_times - itime)]
+
+                # loop over the block indices
+                for iblock in index_block:
+                    # Assign the values to the arrays
+                    predictor_boot[:, itime] = fcst_members[index_ens_this, iblock]
+                    predictand_boot[itime] = predictand_col[iblock]
+
+                    # Increment itime
+                    itime = itime + 1
+
+            # assert that there are non nans in either of the arrays
+            assert not np.isnan(predictor_boot).any(), "values in nao_boot are nan."
+            assert not np.isnan(predictand_boot).any(), "values in corr_var_ts_boot are nan."
+
+            # Calculate the correlation
+            rval_arr[iboot] = pearsonr(np.mean(predictor_boot, axis=0), predictand_boot)[0]
+
+        # Calculate the correlation coefficients
+        corr = rval_arr[0]
+
+        # Count the values
+        count_values = np.sum(
+            i < 0.0 for i in rval_arr
+        )
+
+        # Quantify the pvalues
+        p_val = count_values / nboot
+    else:
+        # Calculate the correlation coefficients
+        corr, p_val = pearsonr(predictor_col, predictand_col)
 
     if twin_axes is True:
         # Create a twin axes
@@ -5937,6 +6385,7 @@ def calculate_correlation_and_pvalue(
     stats_dict: dict,
     nao_var_name: str = "nao",
     corr_var_name: str = "corr_var_ts",
+    nboot=1000,
 ):
     """
     Function to calculate the correlation and p-value between the NAO index
@@ -5955,6 +6404,9 @@ def calculate_correlation_and_pvalue(
         The name of the variable to calculate the correlation with.
         Default is "corr_var_ts".
 
+    nboot: int
+        The number of bootstraps to use.
+
     Output:
 
     corr_array: np.ndarray
@@ -5962,31 +6414,133 @@ def calculate_correlation_and_pvalue(
     pval_array: np.ndarray
 
     """
+
+        # Set up the dictionary for the outputs
+    # missing data indicator
+    mdi = -9999.0
+
+    # Set up the dictionary for the outputs
+    forecasts_stats = {
+        "corr1": mdi,
+        "corr1_p": mdi,
+    }
+
+    # Now include bootstrapping to account for finite time series length
     # Extract the nao index and corr_var_ts from the dictionary
     nao = stats_dict[nao_var_name]
     corr_var_ts = stats_dict[corr_var_name]
 
+    # set up the ntimes
+    ntimes = nao.shape[0]
+
+    # assert that ntimes has the same shape
+    # as the first dimension of corr_var_ts
+    assert ntimes == corr_var_ts.shape[0], "ntimes does not match the shape."
+
     # Create empty arrays for correlation and p-values
-    corr_array = np.empty([corr_var_ts.shape[1], corr_var_ts.shape[2]])
-    pval_array = np.empty([corr_var_ts.shape[1], corr_var_ts.shape[2]])
+    rnao_array = np.empty([nboot, corr_var_ts.shape[1], corr_var_ts.shape[2]])
+    pval_array = np.empty([nboot, corr_var_ts.shape[1], corr_var_ts.shape[2]])
 
-    # Loop over the lats and lons
-    for lat in tqdm(range(corr_var_ts.shape[1])):
-        for lon in range(corr_var_ts.shape[2]):
-            # Extract the corr_var_ts for the lat and lon
-            corr_var_anom_values_lat_lon = corr_var_ts[:, lat, lon]
+    # set up n_lats and n_lons
+    n_lats = corr_var_ts.shape[1]
+    n_lons = corr_var_ts.shape[2]
 
-            # Replace NaNs with 0
-            corr_var_anom_values_lat_lon = np.nan_to_num(
-                corr_var_anom_values_lat_lon, nan=0
+    # set up the block length
+    block_length = 5
+
+    # Set up the number of blocks to be used
+    n_blocks = int(ntimes / block_length)
+
+    # if the nblocks * block_length is less than n_times
+    # add one to the number of blocks
+    if n_blocks * block_length < ntimes:
+        n_blocks = n_blocks + 1
+
+    # set up the indexes
+    # for the time - time needs to be the same for all forecasts and obs
+    index_time = range(ntimes - block_length + 1)
+
+    # Loop over the bootstraps
+    for iboot in tqdm(np.arange(nboot)):
+        if iboot == 0:
+            index_time_this = range(0, ntimes, block_length)
+        else:
+            index_time_this = np.array(
+                [random.choice(index_time) for i in range(n_blocks)]
             )
 
-            # Calculate the correlation and p-value
-            corr, pval = pearsonr(nao, corr_var_anom_values_lat_lon)
+        # Create empty arrays to store the nao obs
+        nao_boot = np.zeros([ntimes])
+        corr_var_ts_boot = np.zeros([ntimes, n_lats, n_lons])
 
-            # Assign the correlation and p-value to the arrays
-            corr_array[lat, lon] = corr
-            pval_array[lat, lon] = pval
+        # Set itime to 0
+        itime = 0
+
+        # loop over the time indexes
+        for i_this in index_time_this:
+            # Individual block index
+            index_block = np.arange(i_this, i_this + block_length)
+
+            # If the block index is greater than the number of times, then reduce the block index
+            index_block[(index_block > ntimes - 1)] = (
+                index_block[(index_block > ntimes - 1)] - ntimes
+            )
+
+            # Select a subset of indices for the block
+            index_block = index_block[: min(block_length, ntimes - itime)]
+
+            # loop over the block indices
+            for iblock in index_block:
+                # Assign the values to the arrays
+                nao_boot[itime] = nao[iblock]
+                corr_var_ts_boot[itime, :, :] = corr_var_ts[iblock, :, :]
+
+                # Increment itime
+                itime = itime + 1
+
+        # Process the stats
+        nao_this = nao_boot
+        corr_var_ts_this = corr_var_ts_boot
+
+        # Loop over the lats and lons
+        for lat in range(n_lats):
+            for lon in range(n_lons):
+                # Extract the corr_var_ts for the lat and lon
+                var_cell = corr_var_ts_this[:, lat, lon]
+
+                # Replace NaNs with 0
+                # corr_var_anom_values_lat_lon = np.nan_to_num(
+                #     corr_var_anom_values_lat_lon, nan=0
+                # )
+
+                # assert that there are no NaNs in var_cell
+                assert not np.isnan(var_cell).any(), "var_cell contains NaN values."
+
+                # Calculate the correlation and p-value
+                rnao_array[iboot, lat, lon] = pearsonr(nao_this, var_cell)[0]
+
+    # First ts is the correlation
+    forecasts_stats["corr1"] = rnao_array[0]
+
+    # Count values array
+    count_vals_rnao = np.zeros([n_lats, n_lons])
+    p_val_array = np.zeros([n_lats, n_lons])
+
+    # loop over the lats and lons
+    for lat in range(n_lats):
+        for lon in range(n_lons):
+            # Extract the values for the lat and lon
+            rnao_cell = rnao_array[:, lat, lon]
+
+            count_vals_rnao[lat, lon] = np.sum(
+                i < 0.0 for i in rnao_cell
+            )
+
+            # Calculate the p-value
+            p_val_array[lat, lon] = count_vals_rnao[lat, lon] / nboot
+
+    # add the pvalue to the forecasts stats
+    forecasts_stats["corr1_p"] = p_val_array
 
     # Return the correlation and p-value arrays
-    return corr_array, pval_array
+    return forecasts_stats["corr1"], forecasts_stats["corr1_p"]
