@@ -1006,6 +1006,9 @@ def plot_corr_subplots(
         # Add coastlines
         ax.coastlines()
 
+        # add borders
+        ax.add_feature(cfeature.BORDERS, linestyle=':')
+
         # # Include the gridlines as dashed lines
         # gl = ax.gridlines(linestyle="--", alpha=0.5, draw_labels=True)
 
@@ -1054,8 +1057,8 @@ def plot_corr_subplots(
         # pval_array_1 = np.where(np.isnan(pval_array_1), 1, np.nan)
         # pval_array_2 = np.where(np.isnan(pval_array_2), 1, np.nan)
 
-        # Plot the p-values
-        ax.contourf(lons, lats, pval_array, hatches=[".."], alpha=0.0, transform=proj)
+        # # Plot the p-values
+        # ax.contourf(lons, lats, pval_array, hatches=[".."], alpha=0.0, transform=proj)
 
         # append the axes to the list
         axes.append(ax)
